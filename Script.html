@@ -38,6 +38,27 @@ window.escapeHtml = function(str) {
         .replace(/'/g, '&#039;');
 };
 
+function ensureScreenElement(screenId) {
+    let element = document.getElementById(screenId);
+    if (element) return element;
+
+    const appRoot = document.getElementById('app-root') || document.body;
+    element = document.createElement('div');
+    element.id = screenId;
+    element.className = 'screen';
+    element.style.display = 'none';
+
+    const fallbackMarkup = {
+        loginScreen: '<div style="padding:24px; max-width:420px; margin:0 auto; text-align:center; font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:28px; margin-bottom:12px; color:#0b6e38;">AaharShree</h1><p style="font-size:14px; color:#475569; margin-bottom:16px;">Your app shell is ready. Start by signing in.</p><button style="padding:12px 18px; background:#0b6e38; color:#fff; border:none; border-radius:10px; font-weight:700;">Login</button></div>',
+        homeScreen: '<div style="padding:24px; max-width:640px; margin:0 auto; text-align:center; font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:26px; margin-bottom:12px; color:#0b6e38;">Home</h1><p style="font-size:14px; color:#475569;">Your store home view is loading.</p></div>',
+        dashboardScreen: '<div style="padding:24px; max-width:640px; margin:0 auto; text-align:center; font-family:Segoe UI,Arial,sans-serif;"><h1 style="font-size:26px; margin-bottom:12px; color:#0b6e38;">Dashboard</h1><p style="font-size:14px; color:#475569;">Admin dashboard content is loading.</p></div>'
+    };
+
+    element.innerHTML = fallbackMarkup[screenId] || '<div style="padding:24px; font-family:Segoe UI,Arial,sans-serif;">Screen unavailable</div>';
+    appRoot.appendChild(element);
+    return element;
+}
+
 const App = {
     user: null,
     returnToCheckout: false
@@ -159,7 +180,12 @@ function showScreen(screenId, pushHistory = true) {
 
     console.log(`[startup] showScreen entered: ${screenId}`);
 
-    const fallbackOrder = [screenId, 'loginScreen', 'homeScreen', 'splashScreen'];
+    ensureScreenElement(screenId);
+    ensureScreenElement('loginScreen');
+    ensureScreenElement('homeScreen');
+    ensureScreenElement('dashboardScreen');
+
+    const fallbackOrder = [screenId, 'loginScreen', 'homeScreen', 'dashboardScreen', 'splashScreen'];
     let target = null;
     let resolvedScreenId = screenId;
 
@@ -309,6 +335,11 @@ function logout() {
 // Check saved user session & sync maintenance mode on app start
 document.addEventListener("DOMContentLoaded", () => {
     console.log("[startup] DOMContentLoaded");
+
+    ensureScreenElement('loginScreen');
+    ensureScreenElement('homeScreen');
+    ensureScreenElement('dashboardScreen');
+
     App.user = null;
     try {
         localStorage.removeItem("aaharshree_user");
@@ -317,6 +348,16 @@ document.addEventListener("DOMContentLoaded", () => {
     } catch(e) {}
 
     if (typeof updateCartBadge === 'function') updateCartBadge();
+
+    if (!document.querySelector('.screen.active')) {
+        setTimeout(() => {
+            try {
+                showScreen('loginScreen', false);
+            } catch (e) {
+                console.error('[startup] fallback login bootstrap failed', e);
+            }
+        }, 0);
+    }
 
     server("getMaintenanceStatus").then(res => {
         console.log("[startup] maintenance-status done");
