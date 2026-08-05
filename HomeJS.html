@@ -1,0 +1,1310 @@
+<script>
+let allProducts = [];
+let homeSliders = [];
+let activeSlideIndex = 0;
+let sliderAutoInterval = null;
+
+window.loadHome = function() {
+    console.log("Loading Home Interface...");
+
+    // Admin Visibility Control for Customer Panel
+    const adminBtn = document.getElementById("bottomAdminNavBtn");
+    const adminHeaderBtn = document.getElementById("homeAdminHeaderBtn");
+    const savedUserStr = localStorage.getItem("admin") || localStorage.getItem("aaharshree_user");
+    let isAdmin = (App.user && App.user.role === 'ADMIN');
+    if (!isAdmin && savedUserStr) {
+        try {
+            const parsed = JSON.parse(savedUserStr);
+            if (parsed && (parsed.role === 'ADMIN' || localStorage.getItem("admin"))) {
+                isAdmin = true;
+            }
+        } catch(e) {}
+    }
+    if (adminBtn) {
+        adminBtn.style.display = isAdmin ? "flex" : "none";
+    }
+    if (adminHeaderBtn) {
+        adminHeaderBtn.style.display = isAdmin ? "flex" : "none";
+    }
+
+    // Update User Greeting Name
+    try {
+        let userStr = localStorage.getItem("aaharshree_user") || localStorage.getItem("customer");
+        if (userStr) {
+            let u = JSON.parse(userStr);
+            if (u && u.name) {
+                const el = document.getElementById("homeUserGreeting");
+                if (el) el.innerText = "Welcome, " + u.name.toUpperCase();
+            }
+        }
+    } catch(e) {}
+
+    // Update Cart Badge
+    updateHomeCartBadge();
+
+    // Check Maintenance Mode
+    checkCustomerMaintenanceBanner();
+
+    // 1. Load Hero Sliders (Instant cache + server sync)
+    activeSlideIndex = 0;
+    const defaultSlidersList = [
+        {
+            id: "SLIDER_DEF1",
+            title: "100% Homemade Authentic Taste",
+            badge: "Ramkella Raw Mango Special",
+            subtitle: "Made with Real Ingredients • Packed with Purity",
+            imageUrl: "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80",
+            actionType: "CATEGORY",
+            actionValue: "Mango Pickles",
+            active: true
+        },
+        {
+            id: "SLIDER_DEF2",
+            title: "Pre-Order Freshly Prepared Sun-Aged Batch",
+            badge: "Limited Seasonal Batch #2026",
+            subtitle: "Reserve your jar before the current batch sells out",
+            imageUrl: "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80",
+            actionType: "PREORDER",
+            actionValue: "preorder",
+            active: true
+        }
+    ];
+
+    // Try loading instant cache first
+    try {
+        const cachedStr = localStorage.getItem("app_sliders");
+        if (cachedStr) {
+            const cachedArr = JSON.parse(cachedStr);
+            if (Array.isArray(cachedArr) && cachedArr.length > 0) {
+                const activeCached = cachedArr.filter(s => s.active !== false && String(s.active).toLowerCase() !== "false");
+                if (activeCached.length > 0) {
+                    homeSliders = activeCached;
+                    renderHomeHeroSlider();
+                }
+            }
+        }
+    } catch(e) {}
+
+    server("getAllSliders").then(sliders => {
+        let list = Array.isArray(sliders) ? sliders : [];
+        let activeSliders = list.filter(s => s.active !== false && String(s.active).toLowerCase() !== "false");
+        
+        if (activeSliders.length === 0) {
+            activeSliders = defaultSlidersList;
+        }
+        
+        homeSliders = activeSliders;
+        activeSlideIndex = 0;
+        renderHomeHeroSlider();
+    }).catch(err => {
+        console.error("Error loading sliders:", err);
+        if (!homeSliders || homeSliders.length === 0) {
+            homeSliders = defaultSlidersList;
+            activeSlideIndex = 0;
+            renderHomeHeroSlider();
+        }
+    });
+
+    // 2. Load Categories
+    server("getAllCategories").then(cats => {
+        const catRow = document.getElementById("homeCategoryRow");
+        if (!catRow) return;
+        let html = `
+          <div class="cat-chip active" id="chip-all" onclick="openCategoryProductsScreen('ALL', '')"><span>🏠</span> All Catalog</div>
+          <div class="cat-chip" id="chip-bestsellers" onclick="openCategoryProductsScreen('Best Sellers', '')"><span>🔥</span> Best Sellers</div>
+          <div class="cat-chip" id="chip-under50off" onclick="openCategoryProductsScreen('Under ₹50 Off', '')"><span>⚡</span> Under ₹50 Off</div>
+          <div class="cat-chip" id="chip-off50percent" onclick="openCategoryProductsScreen('50% Off Special', '')"><span>🎉</span> 50% Off</div>
+          <div class="cat-chip" id="chip-off20percent" onclick="openCategoryProductsScreen('20% Off Special', '')"><span>💥</span> 20% Off</div>
+          <div class="cat-chip" id="chip-newarrivals" onclick="openCategoryProductsScreen('New Arrivals', '')"><span>✨</span> New Arrivals</div>
+        `;
+        if (cats && cats.length > 0) {
+            const sortedCats = [...cats].sort((a, b) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+            sortedCats.forEach(c => {
+                if (c.status === "INACTIVE") return;
+                const safeId = "chip-" + c.name.replace(/\s+/g, '');
+                const img = c.imageUrl || c.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+                html += `<div class="cat-chip" id="${safeId}" onclick="openCategoryProductsScreen('${c.name}', '${img}')"><span>${c.icon || '🍯'}</span> ${c.name}</div>`;
+            });
+        }
+        catRow.innerHTML = html;
+    });
+
+    // 3. Load Products
+    server("getAllProducts").then(products => {
+        allProducts = products || [];
+        if (typeof sortAndRenderProducts === "function") {
+            sortAndRenderProducts();
+        } else {
+            renderProducts(allProducts);
+        }
+    }).catch(err => {
+        document.getElementById("productGrid").innerHTML = "<p style='padding:40px; text-align:center;'>Error loading products.</p>";
+    });
+}
+
+// RENDER AUTOMATIC HERO SLIDER WITH SMOOTH TRACK & TOUCH SWIPE
+let sliderTouchStartX = 0;
+let sliderTouchCurrentX = 0;
+let isSliderDragging = false;
+let sliderDragMoved = false;
+
+window.renderHomeHeroSlider = function() {
+    const box = document.getElementById("homeHeroSliderBox");
+    if (!box) return;
+
+    if (sliderAutoInterval) clearInterval(sliderAutoInterval);
+
+    if (!homeSliders || homeSliders.length === 0) {
+        box.innerHTML = `<div style="display:flex; align-items:center; justify-content:center; height:100%; color:#888; font-size:12px;">No Active Banners</div>`;
+        return;
+    }
+
+    if (activeSlideIndex < 0 || activeSlideIndex >= homeSliders.length) {
+        activeSlideIndex = 0;
+    }
+
+    let innerHtml = `<div id="homeSliderTrack" class="slider-track" style="transform: translateX(-${activeSlideIndex * 100}%);">`;
+
+    homeSliders.forEach((slide, idx) => {
+        const isActive = idx === activeSlideIndex ? "active" : "";
+        const img = slide.imageUrl || 'https://via.placeholder.com/800x400?text=AaharShree+Banner';
+
+        innerHtml += `
+        <div class="slider-slide-item ${isActive}" data-slide-index="${idx}">
+            <img class="slider-bg-img" src="${img}" alt="${slide.title || 'Banner'}" onerror="this.src='https://via.placeholder.com/800x400?text=Banner'" draggable="false">
+            <div class="slider-overlay-gradient"></div>
+            <div class="slider-caption-box">
+                ${slide.badge ? `<span class="slider-badge-tag">${slide.badge}</span>` : ''}
+                <div class="slider-title-text">${slide.title || ''}</div>
+                ${slide.subtitle ? `<div class="slider-sub-text">${slide.subtitle}</div>` : ''}
+            </div>
+        </div>`;
+    });
+
+    innerHtml += `</div>`;
+
+    // Add navigation arrows and dots if more than 1 slide
+    if (homeSliders.length > 1) {
+        innerHtml += `
+        <button class="slider-nav-arrow left-arrow" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();" onclick="event.stopPropagation(); changeSlide(-1)">❮</button>
+        <button class="slider-nav-arrow right-arrow" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();" onclick="event.stopPropagation(); changeSlide(1)">❯</button>
+        
+        <div class="slider-dots-container" id="homeSliderDots" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();">`;
+        homeSliders.forEach((_, idx) => {
+            const isDotActive = idx === activeSlideIndex ? "active" : "";
+            innerHtml += `<div class="slider-dot ${isDotActive}" data-dot-index="${idx}" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();" onclick="event.stopPropagation(); goToSlide(${idx})"></div>`;
+        });
+        innerHtml += `</div>`;
+    }
+
+    box.innerHTML = innerHtml;
+
+    // Attach touch / mouse gesture handlers for horizontal swiping
+    initSliderSwipeGestures(box);
+
+    // Start Auto-Slide Timer
+    startSliderAutoInterval();
+}
+
+function startSliderAutoInterval() {
+    if (sliderAutoInterval) clearInterval(sliderAutoInterval);
+    if (homeSliders && homeSliders.length > 1) {
+        sliderAutoInterval = setInterval(() => {
+            changeSlide(1);
+        }, 3800);
+    }
+}
+
+function updateSliderTrackPosition(smooth = true) {
+    const track = document.getElementById("homeSliderTrack");
+    if (!track) return;
+
+    if (smooth) {
+        track.classList.remove("dragging");
+    } else {
+        track.classList.add("dragging");
+    }
+
+    track.style.transform = `translateX(-${activeSlideIndex * 100}%)`;
+
+    // Update dots active status
+    const dots = document.querySelectorAll("#homeSliderDots .slider-dot");
+    dots.forEach((dot, idx) => {
+        if (idx === activeSlideIndex) dot.classList.add("active");
+        else dot.classList.remove("active");
+    });
+}
+
+function initSliderSwipeGestures(container) {
+    if (!container) return;
+
+    const isControlElement = (target) => {
+        if (!target) return false;
+        return (target.closest && (target.closest('.slider-nav-arrow') || target.closest('.slider-dots-container') || target.closest('.slider-dot')));
+    };
+
+    const startDrag = (clientX, target) => {
+        if (!homeSliders || homeSliders.length === 0) return;
+        if (isControlElement(target)) return;
+
+        isSliderDragging = true;
+        sliderDragMoved = false;
+        sliderTouchStartX = clientX;
+        sliderTouchCurrentX = clientX;
+
+        const track = document.getElementById("homeSliderTrack");
+        if (track) track.classList.add("dragging");
+
+        if (sliderAutoInterval) clearInterval(sliderAutoInterval);
+    };
+
+    const moveDrag = (clientX) => {
+        if (!isSliderDragging) return;
+        const diffX = clientX - sliderTouchStartX;
+        if (Math.abs(diffX) > 6) {
+            sliderDragMoved = true;
+        }
+        sliderTouchCurrentX = clientX;
+
+        const track = document.getElementById("homeSliderTrack");
+        if (track && homeSliders && homeSliders.length > 1) {
+            const containerWidth = container.offsetWidth || 320;
+            const percentageOffset = (diffX / containerWidth) * 100;
+            const currentTranslate = -(activeSlideIndex * 100) + percentageOffset;
+            track.style.transform = `translateX(${currentTranslate}%)`;
+        }
+    };
+
+    const endDrag = (target) => {
+        if (!isSliderDragging) return;
+        isSliderDragging = false;
+
+        const track = document.getElementById("homeSliderTrack");
+        if (track) track.classList.remove("dragging");
+
+        const diffX = sliderTouchCurrentX - sliderTouchStartX;
+        const swipeThreshold = 35; // px
+
+        if (sliderDragMoved && Math.abs(diffX) > swipeThreshold && homeSliders && homeSliders.length > 1) {
+            if (diffX < 0) {
+                // Swiped Left -> Next Slide
+                activeSlideIndex = (activeSlideIndex + 1) % homeSliders.length;
+            } else {
+                // Swiped Right -> Previous Slide
+                activeSlideIndex = (activeSlideIndex - 1 + homeSliders.length) % homeSliders.length;
+            }
+            updateSliderTrackPosition(true);
+        } else if (!sliderDragMoved) {
+            if (!isControlElement(target)) {
+                handleSliderClick(activeSlideIndex);
+            }
+            updateSliderTrackPosition(true);
+        } else {
+            updateSliderTrackPosition(true);
+        }
+
+        startSliderAutoInterval();
+    };
+
+    // Touch Events
+    container.ontouchstart = (e) => {
+        if (e.touches && e.touches[0]) startDrag(e.touches[0].clientX, e.target);
+    };
+    container.ontouchmove = (e) => {
+        if (e.touches && e.touches[0]) moveDrag(e.touches[0].clientX);
+    };
+    container.ontouchend = (e) => endDrag(e.target);
+
+    // Mouse Drag Events
+    container.onmousedown = (e) => {
+        if (isControlElement(e.target)) return;
+        e.preventDefault();
+        startDrag(e.clientX, e.target);
+    };
+    window.onmousemove = (e) => {
+        if (isSliderDragging) moveDrag(e.clientX);
+    };
+    window.onmouseup = (e) => {
+        if (isSliderDragging) endDrag(e.target);
+    };
+}
+
+window.changeSlide = function(direction) {
+    if (!homeSliders || homeSliders.length <= 1) return;
+    activeSlideIndex = (activeSlideIndex + direction + homeSliders.length) % homeSliders.length;
+    updateSliderTrackPosition(true);
+    startSliderAutoInterval();
+}
+
+window.goToSlide = function(index) {
+    if (!homeSliders || index < 0 || index >= homeSliders.length) return;
+    activeSlideIndex = index;
+    updateSliderTrackPosition(true);
+    startSliderAutoInterval();
+}
+
+// HANDLE CLICK ON HERO SLIDER BANNER
+window.handleSliderClick = function(index) {
+    const slide = homeSliders[index];
+    if (!slide) return;
+
+    const type = (slide.actionType || "CATEGORY").toUpperCase();
+    let val = (slide.actionValue || "").trim();
+
+    console.log(`Slider clicked: Type=${type}, Value=${val}`);
+
+    if (type === "CATEGORY") {
+        if (val) {
+            filterByCategory(val);
+            scrollToProducts();
+        } else {
+            scrollToProducts();
+        }
+    } else if (type === "PREORDER") {
+        if (typeof openPreOrderModal === 'function') {
+            openPreOrderModal();
+        } else {
+            scrollToProducts();
+        }
+    } else if (type === "BULK") {
+        if (typeof openBulkModal === 'function') {
+            openBulkModal();
+        } else {
+            scrollToProducts();
+        }
+    } else if (type === "SCREEN") {
+        // Customer-safe navigation routing: NEVER redirect customers to admin screens
+        if (val === "categoriesScreen" || val === "customerCategoriesStore" || val === "categories" || val === "categoriesStore") {
+            if (typeof showScreen === 'function') showScreen("homeScreen");
+            const catRow = document.getElementById("homeCategoryRow");
+            if (catRow) {
+                catRow.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                scrollToProducts();
+            }
+        } else if (val === "specialOrdersScreen" || val === "specialOrdersAdminScreen" || val === "customerPreOrderModal" || val === "preorder") {
+            if (typeof showScreen === 'function') showScreen("homeScreen");
+            if (typeof openPreOrderModal === 'function') openPreOrderModal();
+        } else if (val === "myOrdersScreen") {
+            if (typeof loadMyOrders === 'function') loadMyOrders();
+            if (typeof showScreen === 'function') showScreen("myOrdersScreen");
+        } else if (val === "cartScreen") {
+            if (typeof showScreen === 'function') showScreen("cartScreen");
+        } else if (val === "profileScreen") {
+            if (typeof showScreen === 'function') showScreen("profileScreen");
+        } else if (val === "contactScreen") {
+            if (typeof showScreen === 'function') showScreen("homeScreen");
+            const footer = document.querySelector("footer") || document.getElementById("contactSection");
+            if (footer) footer.scrollIntoView({ behavior: 'smooth' });
+        } else {
+            if (typeof showScreen === 'function') showScreen("homeScreen");
+            scrollToProducts();
+        }
+    } else if (type === "URL" || type === "EXTERNAL") {
+        if (val) {
+            if (!val.startsWith("http://") && !val.startsWith("https://")) {
+                val = "https://" + val;
+            }
+            try {
+                window.open(val, "_blank");
+            } catch(e) {
+                window.location.href = val;
+            }
+        } else {
+            scrollToProducts();
+        }
+    } else {
+        scrollToProducts();
+    }
+}
+
+window.scrollToProducts = function() {
+    const title = document.getElementById("productSectionTitle");
+    if (title) {
+        title.scrollIntoView({ behavior: 'smooth' });
+    }
+}
+
+// RENDER PRODUCTS GRID
+window.renderProducts = function(products) {
+    const grid = document.getElementById("productGrid");
+    if (!grid) return;
+    if (!products || products.length === 0) {
+        grid.innerHTML = "<p style='grid-column: 1/-1; text-align:center; padding:50px; color:#999; font-weight:700;'>No pickles found matching your criteria.</p>";
+        return;
+    }
+    
+    const likedKeys = JSON.parse(localStorage.getItem("liked_products_map") || "{}");
+
+    let html = "";
+    products.forEach(p => {
+        const price = p.offerPrice || p.mrp || 299;
+        const mrpVal = p.mrp || (price + 60);
+        const hasDiscount = mrpVal > price;
+        const discountPct = hasDiscount ? Math.round(((mrpVal - price) / mrpVal) * 100) : 0;
+        
+        const mrpText = hasDiscount ? `<span style="text-decoration:line-through; color:#94a3b8; font-size:11px; margin-left:4px;">₹${mrpVal}</span>` : '';
+        const img = (p.image1 && p.image1.length > 10) ? p.image1 : (p.image || 'https://via.placeholder.com/300?text=AaharShree');
+        
+        // Dynamic Badge logic
+        let badgeHtml = "";
+        if (p.batchStatus) {
+            badgeHtml = `<span style="position:absolute; top:8px; left:8px; background:rgba(11, 110, 56, 0.9); color:white; font-size:9px; font-weight:800; padding:3px 8px; border-radius:10px; backdrop-filter:blur(4px); box-shadow:0 2px 6px rgba(0,0,0,0.15);">${p.batchStatus}</span>`;
+        } else if (p.featured || p.bestSeller) {
+            badgeHtml = `<span style="position:absolute; top:8px; left:8px; background:linear-gradient(135deg, #d97706, #b45309); color:white; font-size:9px; font-weight:800; padding:3px 8px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.15);">🔥 Best Seller</span>`;
+        } else if (p.preOrder || p.isPreOrder) {
+            badgeHtml = `<span style="position:absolute; top:8px; left:8px; background:linear-gradient(135deg, #0284c7, #0369a1); color:white; font-size:9px; font-weight:800; padding:3px 8px; border-radius:10px;">⏳ Pre-Order Batch</span>`;
+        } else {
+            badgeHtml = `<span style="position:absolute; top:8px; left:8px; background:rgba(15, 23, 42, 0.75); color:white; font-size:9px; font-weight:800; padding:3px 8px; border-radius:10px; backdrop-filter:blur(4px);">🌿 100% Homemade</span>`;
+        }
+
+        const isLiked = !!likedKeys[p.id];
+        const heartSymbol = isLiked ? '💖' : '🤍';
+
+        html += `
+        <div class="p-card" onclick="openProduct('${p.id}', 'homeScreen')" style="position:relative; background:white; border-radius:18px; border:1px solid #e2e8f0; overflow:hidden; transition:all 0.25s ease; box-shadow:0 4px 12px rgba(0,0,0,0.03); cursor:pointer;">
+            
+            <div class="p-img-box" style="position:relative; width:100%; height:150px; background:#f8fafc; overflow:hidden;">
+                <img class="p-img" src="${img}" onerror="this.src='https://via.placeholder.com/300?text=Pickle+Jar'" style="width:100%; height:100%; object-fit:cover; transition:transform 0.3s ease;">
+                ${badgeHtml}
+
+                ${hasDiscount ? `<span style="position:absolute; bottom:8px; left:8px; background:#ef4444; color:white; font-size:9px; font-weight:900; padding:2px 6px; border-radius:6px;">${discountPct}% OFF</span>` : ''}
+
+                <!-- Quick Like Button -->
+                <button onclick="event.stopPropagation(); toggleCardLike('${p.id}', this)" style="position:absolute; top:8px; right:8px; background:rgba(255,255,255,0.9); border:none; width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform 0.15s;" title="Like Pickle">
+                    ${heartSymbol}
+                </button>
+            </div>
+
+            <div style="padding:12px; display:flex; flex-direction:column; justify-content:space-between;">
+                <div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:2px;">
+                       <span style="font-size:9px; color:#0b6e38; font-weight:900; text-transform:uppercase; letter-spacing:0.5px;">${p.category || 'Homemade Pickle'}</span>
+                       <span style="font-size:10px; color:#f59e0b; font-weight:800; display:flex; align-items:center; gap:2px;">⭐ 4.9</span>
+                    </div>
+
+                    <div class="p-title" style="font-size:13px; font-weight:800; color:#0f172a; margin-bottom:4px; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${p.name || 'Authentic Homemade Pickle'}</div>
+                    <div style="font-size:10px; color:#64748b; font-weight:700; margin-bottom:8px;">📦 Pack: ${p.weight || '500g Glass Jar'}</div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:8px; margin-top:4px;">
+                    <div class="p-price" style="font-size:15px; font-weight:900; color:#0b6e38;">
+                        ₹${price} ${mrpText}
+                    </div>
+                    <button onclick="event.stopPropagation(); quickAddHomeProductToCart('${p.id}')" style="background:#0b6e38; color:white; border:none; padding:6px 12px; border-radius:10px; font-weight:800; font-size:11px; box-shadow:0 2px 6px rgba(11,110,56,0.2); cursor:pointer; transition:all 0.15s;">
+                        + Add
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+};
+
+window.toggleCardLike = function(prodId, btnEl) {
+    const likedKeys = JSON.parse(localStorage.getItem("liked_products_map") || "{}");
+    const isLiked = !likedKeys[prodId];
+    likedKeys[prodId] = isLiked;
+    localStorage.setItem("liked_products_map", JSON.stringify(likedKeys));
+
+    if (btnEl) btnEl.innerText = isLiked ? '💖' : '🤍';
+
+    // Sync with Wishlist
+    try {
+        const map = (typeof getLocalWishlistMap === 'function') ? getLocalWishlistMap() : JSON.parse(localStorage.getItem("aaharshree_wishlist_map") || "{}");
+        const p = (window.allProducts || []).find(item => String(item.id) === String(prodId));
+        if (isLiked) {
+            map[String(prodId)] = {
+                id: String(prodId),
+                name: p ? p.name : 'Homemade Pickle Jar',
+                price: p ? (p.offerPrice || p.mrp || 299) : 299,
+                mrp: p ? (p.mrp || 350) : 350,
+                weight: p ? (p.weight || '500g Jar') : '500g Jar',
+                image: p ? (p.image1 || p.image || '') : '',
+                category: p ? (p.category || 'Homemade') : 'Homemade',
+                addedAt: new Date().toISOString()
+            };
+        } else {
+            delete map[String(prodId)];
+        }
+        if (typeof setLocalWishlistMap === 'function') {
+            setLocalWishlistMap(map);
+        } else {
+            localStorage.setItem("aaharshree_wishlist_map", JSON.stringify(map));
+            if (typeof updateWishlistBadgeUI === 'function') updateWishlistBadgeUI();
+        }
+    } catch(e) {}
+
+    server("toggleProductLike", { productId: prodId, isLiked: isLiked });
+    server("toggleWishlist", { productId: prodId, isSaved: isLiked, mobile: (typeof getUserMobile === 'function' ? getUserMobile() : '') }).catch(err => console.warn(err));
+};
+
+window.quickAddHomeProductToCart = function(prodId) {
+    const p = allProducts.find(item => String(item.id) === String(prodId));
+    if (!p) return;
+
+    const price = p.offerPrice || p.mrp || 299;
+    const item = {
+        id: p.id,
+        productId: p.id,
+        name: p.name,
+        price: price,
+        weight: p.weight || '500g Jar',
+        image: p.image1 || p.image,
+        qty: 1,
+        isPreOrder: !!(p.preOrder || p.isPreOrder)
+    };
+
+    addToCart(item);
+    if (typeof showCartAlert === 'function') {
+        showCartAlert(`Added 1 x ${p.name} to cart!`);
+    } else {
+        alert(`🛒 Added 1 x ${p.name} to cart!`);
+    }
+};
+
+
+let currentHomeCategory = 'all';
+
+window.filterByCategory = function(catName) {
+    currentHomeCategory = catName || 'all';
+    document.querySelectorAll('.cat-chip').forEach(p => p.classList.remove('active'));
+    
+    if (catName === 'all' || !catName) {
+        const chip = document.getElementById('chip-all');
+        if (chip) chip.classList.add('active');
+        const titleEl = document.getElementById("productSectionTitle");
+        if (titleEl) titleEl.innerText = "Freshly Prepared";
+    } else {
+        const chip = document.getElementById('chip-' + catName.replace(/\s+/g, ''));
+        if (chip) chip.classList.add('active');
+        const titleEl = document.getElementById("productSectionTitle");
+        if (titleEl) titleEl.innerText = catName;
+    }
+    sortAndRenderProducts();
+};
+
+window.searchProducts = function() {
+    const input = document.getElementById("searchInput");
+    const clearBtn = document.getElementById("clearSearchBtn");
+    const query = input ? input.value.toLowerCase().trim() : "";
+    
+    if (clearBtn) {
+        clearBtn.style.display = query.length > 0 ? "inline-flex" : "none";
+    }
+
+    sortAndRenderProducts();
+};
+
+window.sortAndRenderProducts = function() {
+    const input = document.getElementById("searchInput");
+    const query = input ? input.value.toLowerCase().trim() : "";
+    const sortSelect = document.getElementById("homeSortSelect");
+    const sortBy = sortSelect ? sortSelect.value : "featured";
+
+    let filtered = [...allProducts];
+
+    // 1. Filter by category
+    if (currentHomeCategory && currentHomeCategory !== 'all') {
+        filtered = filtered.filter(p => p.category === currentHomeCategory || p.subCategory === currentHomeCategory);
+    }
+
+    // 2. Filter by search query
+    if (query) {
+        filtered = filtered.filter(p => 
+            (p.name && p.name.toLowerCase().includes(query)) || 
+            (p.category && p.category.toLowerCase().includes(query)) ||
+            (p.subCategory && p.subCategory.toLowerCase().includes(query)) ||
+            (p.description && p.description.toLowerCase().includes(query)) ||
+            (p.ingredients && p.ingredients.toLowerCase().includes(query))
+        );
+        const titleEl = document.getElementById("productSectionTitle");
+        if (titleEl) titleEl.innerText = `Search Results (${filtered.length})`;
+    } else if (currentHomeCategory === 'all') {
+        const titleEl = document.getElementById("productSectionTitle");
+        if (titleEl) titleEl.innerText = "Freshly Prepared";
+    }
+
+    // 3. Sort products
+    if (sortBy === "price-asc") {
+        filtered.sort((a, b) => {
+            const priceA = Number(a.offerPrice || a.mrp || 0);
+            const priceB = Number(b.offerPrice || b.mrp || 0);
+            return priceA - priceB;
+        });
+    } else if (sortBy === "price-desc") {
+        filtered.sort((a, b) => {
+            const priceA = Number(a.offerPrice || a.mrp || 0);
+            const priceB = Number(b.offerPrice || b.mrp || 0);
+            return priceB - priceA;
+        });
+    } else if (sortBy === "popularity") {
+        filtered.sort((a, b) => {
+            const popA = (a.bestSeller ? 100 : 0) + (a.featured ? 50 : 0) + (a.newArrival ? 20 : 0) + (Number(a.ordersCount || a.sales || 0) * 10);
+            const popB = (b.bestSeller ? 100 : 0) + (b.featured ? 50 : 0) + (b.newArrival ? 20 : 0) + (Number(b.ordersCount || b.sales || 0) * 10);
+            return popB - popA;
+        });
+    } else if (sortBy === "featured") {
+        filtered.sort((a, b) => {
+            const featA = (a.featured ? 10 : 0) + (a.bestSeller ? 5 : 0);
+            const featB = (b.featured ? 10 : 0) + (b.bestSeller ? 5 : 0);
+            return featB - featA;
+        });
+    }
+
+    renderProducts(filtered);
+};
+
+window.clearSearch = function() {
+    const input = document.getElementById("searchInput");
+    if (input) {
+        input.value = "";
+        searchProducts();
+        input.focus();
+    }
+};
+
+// CART BADGE HELPER
+window.updateHomeCartBadge = function() {
+    try {
+        const cartStr = localStorage.getItem("cart");
+        const cart = cartStr ? JSON.parse(cartStr) : [];
+        const count = cart.reduce((acc, item) => acc + (item.qty || item.quantity || 1), 0);
+        const badge = document.getElementById("cartBadge");
+        if (badge) badge.innerText = String(count);
+    } catch(e) {}
+}
+
+// MODAL HANDLERS FOR PRE-ORDER & BULK
+let loadedPreOrderBatches = [];
+
+window.openPreOrderModal = function(preferredBatchId) {
+    // Auto fill user details if logged in
+    try {
+        let userStr = localStorage.getItem("aaharshree_user") || localStorage.getItem("customer");
+        if (userStr) {
+            let u = JSON.parse(userStr);
+            if (u) {
+                if (u.name && document.getElementById("preOrderName")) document.getElementById("preOrderName").value = u.name;
+                if (u.mobile && document.getElementById("preOrderMobile")) document.getElementById("preOrderMobile").value = u.mobile;
+            }
+        }
+    } catch(e) {}
+
+    document.getElementById("preOrderModal").style.display = "flex";
+
+    const unavailView = document.getElementById("preOrderUnavailableView");
+    const availView = document.getElementById("preOrderAvailableView");
+
+    // Fetch Live Pre-Order Batches
+    server("getPreOrderBatches").then(batches => {
+        loadedPreOrderBatches = batches || [];
+
+        // Separate active vs closed batches
+        const activeBatches = loadedPreOrderBatches.filter(b => {
+            const rem = (parseInt(b.totalStock) || 0) - (parseInt(b.bookedCount) || 0);
+            return rem > 0 && b.status !== "CLOSED" && b.status !== "DISPATCHED";
+        });
+
+        const closedBatches = loadedPreOrderBatches.filter(b => {
+            const rem = (parseInt(b.totalStock) || 0) - (parseInt(b.bookedCount) || 0);
+            return rem <= 0 || b.status === "CLOSED" || b.status === "DISPATCHED";
+        });
+
+        if (activeBatches.length === 0) {
+            // NO ACTIVE PRE-ORDERS AVAILABLE
+            if (availView) availView.style.display = "none";
+            if (unavailView) {
+                unavailView.style.display = "block";
+                
+                let closedHtml = "";
+                if (closedBatches.length > 0) {
+                    closedHtml = `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 12px; margin-bottom:12px; text-align:left;">
+                        <div style="font-size:11px; font-weight:800; color:#64748b; margin-bottom:6px;">Recently Listed Solar Batches:</div>`;
+                    closedBatches.forEach(cb => {
+                        const isDisp = cb.status === "DISPATCHED";
+                        const badge = isDisp 
+                            ? `<span style="background:#dbeafe; color:#1e40af; font-size:9px; font-weight:800; padding:2px 6px; border-radius:6px;">DISPATCHED</span>` 
+                            : `<span style="background:#fee2e2; color:#991b1b; font-size:9px; font-weight:800; padding:2px 6px; border-radius:6px;">FULLY BOOKED</span>`;
+                        closedHtml += `<div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; font-weight:700; color:#334155; margin-bottom:4px;">
+                            <span>🏺 ${cb.productName} (${cb.batchNumber || 'Batch'})</span>
+                            ${badge}
+                        </div>`;
+                    });
+                    closedHtml += `</div>`;
+                }
+
+                const container = document.getElementById("closedBatchesListContainer");
+                if (container) container.innerHTML = closedHtml;
+            }
+            return;
+        }
+
+        // PRE-ORDERS ARE AVAILABLE!
+        if (unavailView) unavailView.style.display = "none";
+        if (availView) availView.style.display = "block";
+
+        const cardsBox = document.getElementById("preOrderBatchCardsList");
+        const select = document.getElementById("preOrderBatchSelect");
+
+        let cardsHtml = "";
+        let optionsHtml = "";
+
+        let selectedId = preferredBatchId || activeBatches[0].id;
+
+        activeBatches.forEach((b) => {
+            const rem = (parseInt(b.totalStock) || 0) - (parseInt(b.bookedCount) || 0);
+            const total = parseInt(b.totalStock) || 1;
+            const percent = Math.min(100, Math.round(((b.bookedCount || 0) / total) * 100));
+            const imgUrl = b.imageUrl || 'https://images.unsplash.com/photo-1599909631369-02eb644910e5?w=500';
+            const isSelected = String(b.id) === String(selectedId);
+
+            optionsHtml += `<option value="${b.id}" ${isSelected ? 'selected' : ''}>${b.productName} (${b.batchNumber || 'Batch'}) [${rem} Jars Left]</option>`;
+
+            cardsHtml += `
+            <div id="pcard_${b.id}" onclick="selectPreOrderBatchCard('${b.id}')" style="background:${isSelected ? '#f0fdf4' : 'white'}; border:${isSelected ? '2px solid #0b6e38' : '1px solid #cbd5e1'}; border-radius:14px; padding:12px; cursor:pointer; transition:all 0.2s; position:relative; box-shadow:${isSelected ? '0 4px 12px rgba(11,110,56,0.12)' : 'none'};">
+                <div style="display:flex; gap:10px; align-items:center;">
+                    <img src="${imgUrl}" alt="${b.productName}" style="width:52px; height:52px; border-radius:10px; object-fit:cover; border:1px solid #cbd5e1; flex-shrink:0;">
+                    <div style="flex:1;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <span style="font-size:9px; font-weight:800; background:#e0f2fe; color:#0369a1; padding:2px 6px; border-radius:6px;">${b.batchNumber || 'BATCH'}</span>
+                                <span style="font-size:9px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:6px;">${b.tag || 'Pre-Order'}</span>
+                            </div>
+                            ${isSelected ? `<span style="font-size:10px; font-weight:800; color:#0b6e38; background:#bbf7d0; padding:2px 8px; border-radius:10px;">✓ Selected</span>` : ''}
+                        </div>
+                        <h4 style="font-size:13px; font-weight:800; color:#1e293b; margin:3px 0 2px 0;">${b.productName}</h4>
+                        <div style="font-size:10px; color:#0b6e38; font-weight:700;">🚚 Dispatch Estimate: ${b.deliveryEstimate || 'Ships when ready'}</div>
+                    </div>
+                </div>
+
+                <!-- STOCK PROGRESS BAR -->
+                <div style="margin-top:8px; background:#e2e8f0; height:6px; border-radius:6px; overflow:hidden;">
+                    <div style="width:${percent}%; height:100%; background:${percent > 80 ? '#f59e0b' : '#10b981'};"></div>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:10px; font-weight:800; margin-top:4px; color:#475569;">
+                    <span>🔥 ${rem} Jars Available Quota</span>
+                    <span>${b.bookedCount || 0}/${total} Booked</span>
+                </div>
+            </div>`;
+        });
+
+        if (cardsBox) cardsBox.innerHTML = cardsHtml;
+        if (select) {
+            select.innerHTML = optionsHtml;
+            select.value = selectedId;
+        }
+
+        onPreOrderBatchChange();
+    }).catch(err => {
+        console.error("Error loading pre-order batches:", err);
+        try {
+            const stored = localStorage.getItem("app_preorder_batches");
+            if (stored) {
+                loadedPreOrderBatches = JSON.parse(stored) || [];
+                openPreOrderModal(preferredBatchId);
+            }
+        } catch(e) {}
+    });
+};
+
+window.selectPreOrderBatchCard = function(batchId) {
+    const select = document.getElementById("preOrderBatchSelect");
+    if (select) {
+        select.value = batchId;
+        onPreOrderBatchChange();
+    }
+};
+
+window.onPreOrderBatchChange = function() {
+    const batchId = document.getElementById("preOrderBatchSelect")?.value;
+    const batch = loadedPreOrderBatches.find(b => String(b.id) === String(batchId));
+    
+    // Highlight selected card visually
+    if (loadedPreOrderBatches && loadedPreOrderBatches.length > 0) {
+        loadedPreOrderBatches.forEach(b => {
+            const card = document.getElementById("pcard_" + b.id);
+            if (card) {
+                if (String(b.id) === String(batchId)) {
+                    card.style.background = "#f0fdf4";
+                    card.style.borderColor = "#0b6e38";
+                    card.style.borderWidth = "2px";
+                } else {
+                    card.style.background = "white";
+                    card.style.borderColor = "#cbd5e1";
+                    card.style.borderWidth = "1px";
+                }
+            }
+        });
+    }
+
+    const countEl = document.getElementById("preOrderStockCount");
+    const badgeEl = document.getElementById("preOrderStockBadge");
+    const btnEl = document.getElementById("preOrderSubmitBtn");
+    const qtyInput = document.getElementById("preOrderQtyNum");
+
+    if (!batch) {
+        if (countEl) countEl.innerText = "No batch selected";
+        if (btnEl) btnEl.disabled = true;
+        return;
+    }
+
+    const remaining = (parseInt(batch.totalStock) || 0) - (parseInt(batch.bookedCount) || 0);
+    if (qtyInput) qtyInput.max = Math.max(1, remaining);
+
+    const requestedQty = parseInt(qtyInput?.value) || 1;
+
+    if (remaining <= 0 || batch.status === "CLOSED") {
+        if (countEl) {
+            countEl.innerHTML = `<span style="color:#dc2626; font-weight:900;">BATCH FULL / SOLD OUT (0 Left)</span>`;
+        }
+        if (badgeEl) {
+            badgeEl.style.background = "#fef2f2";
+            badgeEl.style.borderColor = "#fca5a5";
+        }
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.style.opacity = "0.5";
+            btnEl.innerText = "Pre-Order Batch Sold Out";
+        }
+    } else if (requestedQty > remaining) {
+        if (countEl) {
+            countEl.innerHTML = `<span style="color:#d97706; font-weight:900;">Only ${remaining} Jar(s) Left in Batch!</span>`;
+        }
+        if (badgeEl) {
+            badgeEl.style.background = "#fffbeb";
+            badgeEl.style.borderColor = "#fcd34d";
+        }
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.style.opacity = "0.5";
+            btnEl.innerText = `Exceeds Stock Limit (${remaining} Left)`;
+        }
+    } else {
+        if (countEl) {
+            countEl.innerHTML = `<span style="color:#0b6e38; font-weight:900;">${remaining} Jars Available Quota</span>`;
+        }
+        if (badgeEl) {
+            badgeEl.style.background = "#eaf7ee";
+            badgeEl.style.borderColor = "#bbf7d0";
+        }
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.style.opacity = "1";
+            btnEl.innerText = `🏺 Reserve ${requestedQty} Jar(s) from ${batch.batchNumber || 'Batch'}`;
+        }
+    }
+};
+
+window.closePreOrderModal = function() {
+    document.getElementById("preOrderModal").style.display = "none";
+};
+
+window.closePreOrderSuccessModal = function() {
+    const modal = document.getElementById("preOrderSuccessModal");
+    if (modal) modal.style.display = "none";
+};
+
+window.submitPreOrder = function() {
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Active:\nAaharShree Naturals pre-order reservations are currently paused during scheduled maintenance by Master Admin.");
+        return;
+    }
+
+    const batchId = document.getElementById("preOrderBatchSelect")?.value;
+    const batch = loadedPreOrderBatches.find(b => String(b.id) === String(batchId));
+    const quantity = parseInt(document.getElementById("preOrderQtyNum")?.value) || 1;
+    const unit = document.getElementById("preOrderUnitSelect")?.value || "500g Jar";
+
+    const nameEl = document.getElementById("preOrderName");
+    const mobileEl = document.getElementById("preOrderMobile");
+    const addressEl = document.getElementById("preOrderAddress");
+
+    const customerName = nameEl ? nameEl.value.trim() : "";
+    const rawMobile = mobileEl ? mobileEl.value.trim().replace(/\D/g, '') : "";
+    const address = addressEl ? addressEl.value.trim() : "";
+
+    // Reset field highlights
+    [nameEl, mobileEl, addressEl].forEach(el => { if (el) el.style.borderColor = "#cbd5e1"; });
+
+    if (!batchId || !batch) {
+        alert("⚠️ Please select an active pre-order batch.");
+        return;
+    }
+
+    const missing = [];
+    if (!customerName) { missing.push("Full Name"); if (nameEl) nameEl.style.borderColor = "#dc2626"; }
+    if (!rawMobile || rawMobile.length !== 10) { missing.push("10-Digit Mobile Number"); if (mobileEl) mobileEl.style.borderColor = "#dc2626"; }
+    if (!address) { missing.push("Delivery Address & PIN Code"); if (addressEl) addressEl.style.borderColor = "#dc2626"; }
+
+    if (missing.length > 0) {
+        alert(`⚠️ Required Pre-Order information missing:\n${missing.join(", ")}. Please complete all mandatory fields (*).`);
+        return;
+    }
+
+    let userMobile = rawMobile || ((typeof App !== 'undefined' && App.user && App.user.mobile) ? App.user.mobile : rawMobile);
+    let custId = (typeof App !== 'undefined' && App.user && (App.user.customerId || App.user.id)) ? (App.user.customerId || App.user.id) : userMobile;
+
+    const payload = {
+        batchId: batch.id,
+        batchNumber: batch.batchNumber,
+        productName: batch.productName,
+        quantity: quantity,
+        unit: unit,
+        customerName: customerName,
+        mobile: userMobile,
+        customerId: custId,
+        customerID: custId,
+        address: address,
+        type: "PREORDER"
+    };
+
+    if (typeof showLoading === 'function') showLoading("Reserving Solar-Aged Jar...");
+
+    // Update in-memory & localStorage stock quota immediately
+    batch.bookedCount = (parseInt(batch.bookedCount) || 0) + quantity;
+    if (batch.bookedCount >= batch.totalStock) {
+        batch.status = "CLOSED";
+    }
+
+    try {
+        localStorage.setItem("app_preorder_batches", JSON.stringify(loadedPreOrderBatches));
+    } catch(e) {}
+
+    server("createPreOrder", payload).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        if (res.success || res.order) {
+            closePreOrderModal();
+
+            // Populate & show success modal
+            const sucRef = document.getElementById("sucOrderRef");
+            const sucBatch = document.getElementById("sucBatchName");
+            const sucQty = document.getElementById("sucQtyReserved");
+            const sucDisp = document.getElementById("sucDispatchEst");
+
+            if (sucRef) sucRef.innerText = res.order ? res.order.id : 'PREORD-RESERVED';
+            if (sucBatch) sucBatch.innerText = `${batch.productName} (${batch.batchNumber || 'Batch'})`;
+            if (sucQty) sucQty.innerText = `${quantity} x ${unit}`;
+            if (sucDisp) sucDisp.innerText = batch.deliveryEstimate || 'Ships as scheduled';
+
+            const successModal = document.getElementById("preOrderSuccessModal");
+            if (successModal) successModal.style.display = "flex";
+
+            // Refresh profile data if loaded
+            if (typeof loadCustomerAccountData === 'function') {
+                loadCustomerAccountData();
+            }
+
+            // Immediately refresh batch cards stock & quota displays
+            openPreOrderModal(batch.id);
+            closePreOrderModal(); // keep modal state consistent
+        } else {
+            alert("⚠️ Reservation Error: " + (res.error || "Unable to complete pre-order."));
+        }
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        // Fallback for offline/demo mode success
+        closePreOrderModal();
+        const successModal = document.getElementById("preOrderSuccessModal");
+        if (successModal) successModal.style.display = "flex";
+        if (typeof loadCustomerAccountData === 'function') loadCustomerAccountData();
+    });
+};
+
+let currentBulkSelectedItems = [];
+let availableBulkProductsList = [];
+let bulkCategoriesList = [];
+
+window.openBulkModal = function() {
+    try {
+        let userStr = localStorage.getItem("aaharshree_user") || localStorage.getItem("customer");
+        if (userStr) {
+            let u = JSON.parse(userStr);
+            if (u) {
+                if (u.name && document.getElementById("bulkName")) document.getElementById("bulkName").value = u.name;
+                if (u.mobile && document.getElementById("bulkMobile")) document.getElementById("bulkMobile").value = u.mobile;
+            }
+        }
+    } catch(e) {}
+
+    currentBulkSelectedItems = [];
+    renderBulkSelectedItemsList();
+
+    // Fetch Categories for Bulk Selector
+    server("getAllCategories").then(cats => {
+        bulkCategoriesList = cats || [];
+        const catFilter = document.getElementById("bulkCategoryFilter");
+        if (catFilter) {
+            let optionsHtml = `<option value="ALL">All Categories (${bulkCategoriesList.length})</option>`;
+            bulkCategoriesList.forEach(c => {
+                const icon = c.icon ? c.icon + " " : "📁 ";
+                optionsHtml += `<option value="${c.name}">${icon}${c.name}</option>`;
+            });
+            catFilter.innerHTML = optionsHtml;
+        }
+    }).catch(err => console.error("Error loading categories for bulk modal:", err));
+
+    // Fetch products enabled for bulk order by admin
+    server("getAllProducts").then(products => {
+        availableBulkProductsList = (products || []).filter(p => p.bulkAvailable !== false);
+        populateBulkProductsDropdown();
+    }).catch(err => console.error("Error loading bulk products:", err));
+
+    document.getElementById("bulkOrderModal").style.display = "flex";
+}
+
+window.populateBulkProductsDropdown = function() {
+    const sel = document.getElementById("bulkProductSelect");
+    if (!sel) return;
+
+    const catVal = document.getElementById("bulkCategoryFilter")?.value || "ALL";
+    let filteredProds = availableBulkProductsList;
+
+    if (catVal && catVal !== "ALL") {
+        filteredProds = availableBulkProductsList.filter(p => p.category && p.category.toLowerCase() === catVal.toLowerCase());
+    }
+
+    if (!filteredProds || filteredProds.length === 0) {
+        sel.innerHTML = `<option value="">🚫 No bulk-available products in this category</option>`;
+    } else {
+        let optionsHtml = "";
+        filteredProds.forEach(p => {
+            const maxQty = p.maxBulkQty !== undefined ? p.maxBulkQty : 50;
+            optionsHtml += `<option value="${p.id}">🥒 ${p.name} [${p.category || 'General'}] (Max Limit: ${maxQty} Kg/Jars)</option>`;
+        });
+        sel.innerHTML = optionsHtml;
+    }
+    onBulkProductSelectChange();
+}
+
+window.onBulkCategoryFilterChange = function() {
+    populateBulkProductsDropdown();
+}
+
+window.closeBulkModal = function() {
+    document.getElementById("bulkOrderModal").style.display = "none";
+}
+
+window.onBulkProductSelectChange = function() {
+    const sel = document.getElementById("bulkProductSelect");
+    const notice = document.getElementById("bulkItemLimitNotice");
+    const qtyInput = document.getElementById("bulkItemQty");
+    if (!sel || availableBulkProductsList.length === 0) return;
+
+    const prodId = sel.value;
+    const targetProd = availableBulkProductsList.find(p => String(p.id) === String(prodId));
+    if (targetProd) {
+        const maxQty = targetProd.maxBulkQty !== undefined ? targetProd.maxBulkQty : 50;
+        if (notice) {
+            notice.style.display = "block";
+            notice.innerHTML = `🛡️ Admin Limit: Max <strong>${maxQty}</strong> Kg/Jars per order for ${targetProd.name}.`;
+        }
+        if (qtyInput) {
+            qtyInput.max = maxQty;
+            if (parseInt(qtyInput.value) > maxQty) {
+                qtyInput.value = maxQty;
+            }
+        }
+    }
+}
+
+window.validateBulkItemQty = function() {
+    const sel = document.getElementById("bulkProductSelect");
+    const qtyInput = document.getElementById("bulkItemQty");
+    if (!sel || !qtyInput) return;
+
+    const prodId = sel.value;
+    const targetProd = availableBulkProductsList.find(p => String(p.id) === String(prodId));
+    if (targetProd) {
+        const maxQty = targetProd.maxBulkQty !== undefined ? targetProd.maxBulkQty : 50;
+        let val = parseInt(qtyInput.value) || 1;
+        if (val > maxQty) {
+            alert(`⚠️ Admin Limit Notice: The maximum bulk quantity for "${targetProd.name}" is set to ${maxQty} Kg/Jars.`);
+            qtyInput.value = maxQty;
+        }
+    }
+}
+
+window.addBulkItemToRequest = function() {
+    const sel = document.getElementById("bulkProductSelect");
+    const qtyInput = document.getElementById("bulkItemQty");
+    const unitSelect = document.getElementById("bulkItemUnit");
+
+    if (!sel || !sel.value || availableBulkProductsList.length === 0) {
+        alert("Please select a valid available product.");
+        return;
+    }
+
+    const prodId = sel.value;
+    const targetProd = availableBulkProductsList.find(p => String(p.id) === String(prodId));
+    if (!targetProd) return;
+
+    const maxQty = targetProd.maxBulkQty !== undefined ? targetProd.maxBulkQty : 50;
+    const qty = parseInt(qtyInput.value) || 1;
+    const unit = unitSelect ? unitSelect.value : "Kg";
+
+    if (qty > maxQty) {
+        alert(`⚠️ Maximum bulk quantity allowed for ${targetProd.name} is ${maxQty}.`);
+        return;
+    }
+
+    // Check if item already added
+    const existingIndex = currentBulkSelectedItems.findIndex(i => String(i.productId) === String(prodId));
+    if (existingIndex >= 0) {
+        const totalNewQty = currentBulkSelectedItems[existingIndex].qty + qty;
+        if (totalNewQty > maxQty) {
+            alert(`⚠️ Cannot add ${qty} more. Total quantity (${totalNewQty}) exceeds the maximum limit of ${maxQty} allowed by Admin for ${targetProd.name}.`);
+            return;
+        }
+        currentBulkSelectedItems[existingIndex].qty = totalNewQty;
+    } else {
+        currentBulkSelectedItems.push({
+            productId: targetProd.id,
+            productName: targetProd.name,
+            qty: qty,
+            unit: unit,
+            maxAllowed: maxQty
+        });
+    }
+
+    renderBulkSelectedItemsList();
+}
+
+window.removeBulkItemFromRequest = function(index) {
+    currentBulkSelectedItems.splice(index, 1);
+    renderBulkSelectedItemsList();
+}
+
+window.renderBulkSelectedItemsList = function() {
+    const box = document.getElementById("bulkSelectedItemsList");
+    if (!box) return;
+
+    if (!currentBulkSelectedItems || currentBulkSelectedItems.length === 0) {
+        box.innerHTML = `<span style="color:#94a3b8; font-size:11px; text-align:center; font-style:italic; display:block; padding:4px;">No products added yet. Select a product above and click "+ Add Item".</span>`;
+        return;
+    }
+
+    let html = "";
+    currentBulkSelectedItems.forEach((item, idx) => {
+        html += `
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#eef2ff; border:1px solid #c7d2fe; border-radius:8px; padding:6px 10px; font-size:12px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="font-weight:800; color:#3730a3;">${item.productName}</span>
+                <span style="font-weight:800; background:#3730a3; color:white; padding:2px 6px; border-radius:10px; font-size:10px;">${item.qty} ${item.unit}</span>
+                <small style="font-size:9px; color:#64748b;">(Max: ${item.maxAllowed})</small>
+            </div>
+            <button type="button" onclick="removeBulkItemFromRequest(${idx})" style="background:#ef4444; color:white; border:none; border-radius:50%; width:20px; height:20px; font-size:10px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+        </div>`;
+    });
+
+    box.innerHTML = html;
+}
+
+window.submitBulkOrder = function() {
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Active:\nAaharShree Naturals wholesale bulk order inquiries are currently paused during scheduled maintenance by Master Admin.");
+        return;
+    }
+
+    const purposeEl = document.getElementById("bulkPurpose");
+    const nameEl = document.getElementById("bulkName");
+    const eventDateEl = document.getElementById("bulkEventDate");
+    const addressEl = document.getElementById("bulkAddress");
+    const noteEl = document.getElementById("bulkCustomizationNote");
+    const mobileEl = document.getElementById("bulkMobile");
+
+    const purpose = purposeEl ? purposeEl.value : "Event / Wholesale";
+    const customerName = nameEl ? nameEl.value.trim() : "";
+    const eventDate = eventDateEl ? eventDateEl.value.trim() : "";
+    const address = addressEl ? addressEl.value.trim() : "";
+    const customNote = noteEl ? noteEl.value.trim() : "";
+    const rawMobile = mobileEl ? mobileEl.value.trim().replace(/\D/g, '') : "";
+
+    // Reset field highlights
+    [nameEl, eventDateEl, addressEl, mobileEl].forEach(el => { if (el) el.style.borderColor = "#cbd5e1"; });
+
+    const missing = [];
+    if (!currentBulkSelectedItems || currentBulkSelectedItems.length === 0) {
+        missing.push("At least 1 product added to order list");
+    }
+    if (!customerName) { missing.push("Contact Person Name"); if (nameEl) nameEl.style.borderColor = "#dc2626"; }
+    if (!rawMobile || rawMobile.length !== 10) { missing.push("10-Digit WhatsApp/Mobile No."); if (mobileEl) mobileEl.style.borderColor = "#dc2626"; }
+    if (!eventDate) { missing.push("Required Delivery Date"); if (eventDateEl) eventDateEl.style.borderColor = "#dc2626"; }
+    if (!address) { missing.push("Delivery Address / Venue / City"); if (addressEl) addressEl.style.borderColor = "#dc2626"; }
+
+    if (missing.length > 0) {
+        alert(`⚠️ Required Bulk Order information missing:\n${missing.join("\n")}\n\nPlease complete all mandatory fields (*).`);
+        return;
+    }
+
+    let userMobile = rawMobile || ((typeof App !== 'undefined' && App.user && App.user.mobile) ? App.user.mobile : rawMobile);
+    let custId = (typeof App !== 'undefined' && App.user && (App.user.customerId || App.user.id)) ? (App.user.customerId || App.user.id) : userMobile;
+
+    const payload = { 
+        purpose,
+        customerName, 
+        customerId: custId,
+        customerID: custId,
+        items: currentBulkSelectedItems,
+        eventDate,
+        address: address,
+        customNote: customNote + (address ? " | Delivery Venue: " + address : ""),
+        eventName: purpose + (eventDate ? " (" + eventDate + ")" : ""),
+        mobile: userMobile,
+        type: "BULK" 
+    };
+
+    if (typeof showLoading === 'function') showLoading("Submitting Wholesale Bulk Quote...");
+
+    server("createBulkOrder", payload).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        const itemNames = currentBulkSelectedItems.map(i => `${i.productName} (${i.qty} ${i.unit})`).join(", ");
+        alert(`📦 Multi-Product Wholesale Quote Submitted!\n\nThank you ${customerName}!\nYour customized request for [${itemNames}] has been registered in our Admin Control Center.\n\nOur team will contact you on WhatsApp (${userMobile}) with discounted wholesale pricing.`);
+        closeBulkModal();
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Error submitting bulk request: " + (err.message || err));
+    });
+}
+
+window.handleBottomAdminClick = function() {
+    const savedUserStr = localStorage.getItem("admin") || localStorage.getItem("aaharshree_user");
+    let isAdmin = (App.user && App.user.role === 'ADMIN');
+    if (!isAdmin && savedUserStr) {
+        try {
+            const parsed = JSON.parse(savedUserStr);
+            if (parsed && (parsed.role === 'ADMIN' || localStorage.getItem("admin"))) {
+                isAdmin = true;
+            }
+        } catch(e) {}
+    }
+    if (isAdmin) {
+        showScreen("dashboardScreen");
+        if (typeof loadDashboard === 'function') loadDashboard();
+    } else {
+        showScreen("loginScreen");
+    }
+}
+
+window.checkCustomerMaintenanceBanner = function() {
+    const banner = document.getElementById("customerMaintenanceBanner");
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (banner) {
+        banner.style.display = isMaintenance ? "block" : "none";
+    }
+}
+
+window.openPreOrderWhatsAppInquiry = function() {
+    server("getAllSettings").then(s => {
+        let waNumber = (s && s.SUPPORT_WHATSAPP) ? s.SUPPORT_WHATSAPP : "9876543210";
+        let clean = waNumber.replace(/\D/g, "");
+        if (clean.length === 10) clean = "91" + clean;
+        const msg = encodeURIComponent("Hello AaharShree, when will the next sun-aged pre-order batch be available?");
+        window.open(`https://wa.me/${clean}?text=${msg}`, '_blank');
+    }).catch(() => {
+        window.open(`https://wa.me/919876543210?text=Hello%20AaharShree,%20when%20will%20the%20next%20sun-aged%20pre-order%20batch%20be%20available?`, '_blank');
+    });
+};
+</script>

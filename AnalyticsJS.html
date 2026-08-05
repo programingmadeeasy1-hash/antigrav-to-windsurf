@@ -1,0 +1,319 @@
+<script>
+let currentAnalyticsTimeRange = "all";
+let rawAnalyticsOrders = [];
+let rawAnalyticsProducts = [];
+let rawAnalyticsCustomers = [];
+
+window.openAnalyticsScreen = function() {
+    showScreen("analyticsScreen");
+    loadAnalyticsData();
+};
+
+window.setTimeFilter = function(range, buttonEl) {
+    currentAnalyticsTimeRange = range;
+    
+    document.querySelectorAll(".analyticsTimeChip").forEach(btn => {
+        btn.classList.remove("active");
+    });
+    if (buttonEl) buttonEl.classList.add("active");
+
+    renderAnalyticsUI();
+};
+
+window.loadAnalyticsData = function() {
+    showLoading("Calculating business intelligence...");
+
+    Promise.all([
+        server("getAllOrders"),
+        server("getAllProducts"),
+        server("getAllCustomers")
+    ]).then(([orders, products, customers]) => {
+        hideLoading();
+        rawAnalyticsOrders = Array.isArray(orders) ? orders : [];
+        rawAnalyticsProducts = Array.isArray(products) ? products : [];
+        rawAnalyticsCustomers = Array.isArray(customers) ? customers : [];
+
+        renderAnalyticsUI();
+    }).catch(err => {
+        hideLoading();
+        console.error("Error loading analytics data:", err);
+        alert("Failed to load analytics data: " + err);
+    });
+};
+
+function filterOrdersByTimeRange(orders, range) {
+    if (!orders || orders.length === 0) return [];
+    if (range === "all") return orders;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const weekAgo = now.getTime() - (7 * 24 * 60 * 60 * 1000);
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+
+    return orders.filter(o => {
+        const timestamp = o.date ? new Date(o.date).getTime() : (o.createdAt ? new Date(o.createdAt).getTime() : now.getTime());
+        if (range === "today") return timestamp >= todayStart;
+        if (range === "week") return timestamp >= weekAgo;
+        if (range === "month") return timestamp >= monthStart;
+        return true;
+    });
+}
+
+function renderAnalyticsUI() {
+    const orders = filterOrdersByTimeRange(rawAnalyticsOrders, currentAnalyticsTimeRange);
+    
+    // 1. Calculate KPI Metrics
+    let totalRev = 0;
+    let completedCount = 0;
+    let pendingCount = 0;
+    const catRevenueMap = {};
+    const productSalesMap = {};
+    const paymentModeMap = { UPI: 0, COD: 0 };
+    const statusMap = { DELIVERED: 0, PROCESSING: 0, PENDING: 0, CANCELLED: 0 };
+
+    orders.forEach(o => {
+        const amount = Number(o.total || o.amount || o.subtotal || 0);
+        totalRev += amount;
+
+        const status = (o.status || 'PENDING').toUpperCase();
+        if (status === 'DELIVERED' || status === 'COMPLETED') {
+            completedCount++;
+            statusMap.DELIVERED = (statusMap.DELIVERED || 0) + 1;
+        } else if (status === 'CANCELLED') {
+            statusMap.CANCELLED = (statusMap.CANCELLED || 0) + 1;
+        } else if (status === 'PROCESSING') {
+            pendingCount++;
+            statusMap.PROCESSING = (statusMap.PROCESSING || 0) + 1;
+        } else {
+            pendingCount++;
+            statusMap.PENDING = (statusMap.PENDING || 0) + 1;
+        }
+
+        const mode = (o.paymentMode || o.paymentMethod || 'UPI').toUpperCase();
+        if (mode.includes('COD') || mode.includes('CASH')) {
+            paymentModeMap.COD = (paymentModeMap.COD || 0) + 1;
+        } else {
+            paymentModeMap.UPI = (paymentModeMap.UPI || 0) + 1;
+        }
+
+        // Aggregate product & category sales
+        const items = o.items || o.cart || [];
+        if (Array.isArray(items)) {
+            items.forEach(item => {
+                const name = item.name || item.productName || "Homemade Pickle";
+                const cat = item.category || "Mango Pickles";
+                const qty = Number(item.qty || item.quantity || 1);
+                const itemTotal = Number(item.price || 0) * qty;
+
+                catRevenueMap[cat] = (catRevenueMap[cat] || 0) + itemTotal;
+                
+                if (!productSalesMap[name]) {
+                    productSalesMap[name] = { name, cat, units: 0, revenue: 0 };
+                }
+                productSalesMap[name].units += qty;
+                productSalesMap[name].revenue += itemTotal;
+            });
+        }
+    });
+
+    const ordersCount = orders.length;
+    const aov = ordersCount > 0 ? Math.round(totalRev / ordersCount) : 0;
+
+    // Update KPI Elements
+    document.getElementById("analyticsTotalRevenue").innerText = "₹" + totalRev.toLocaleString('en-IN');
+    document.getElementById("analyticsTotalOrders").innerText = ordersCount;
+    document.getElementById("analyticsOrdersSub").innerText = `${completedCount} Completed • ${pendingCount} Active`;
+    document.getElementById("analyticsAOV").innerText = "₹" + aov.toLocaleString('en-IN');
+    document.getElementById("analyticsCustomersCount").innerText = rawAnalyticsCustomers.length || ordersCount;
+
+    // 2. Render Category Revenue Bars
+    renderCategoryBars(catRevenueMap, totalRev);
+
+    // 3. Render Payment Ratio Breakdown
+    renderPaymentBreakdown(paymentModeMap, ordersCount);
+
+    // 4. Render Status Breakdown
+    renderStatusBreakdown(statusMap, ordersCount);
+
+    // 5. Render Top Products Table
+    renderTopProductsTable(productSalesMap);
+
+    // 6. Render Insights
+    renderBusinessInsights(totalRev, ordersCount, aov, paymentModeMap, catRevenueMap);
+}
+
+function renderCategoryBars(catMap, totalRev) {
+    const container = document.getElementById("analyticsCategoryBarsContainer");
+    if (!container) return;
+
+    const entries = Object.entries(catMap);
+    if (entries.length === 0) {
+        container.innerHTML = `<p style="font-size:12px; color:#94a3b8; text-align:center; padding:15px;">No sales recorded for this timeframe.</p>`;
+        return;
+    }
+
+    // Sort descending by revenue
+    entries.sort((a,b) => b[1] - a[1]);
+
+    const maxRev = entries[0][1] || 1;
+    let html = "";
+
+    entries.forEach(([catName, rev]) => {
+        const percent = totalRev > 0 ? Math.round((rev / totalRev) * 100) : 0;
+        const barWidth = Math.max(8, Math.round((rev / maxRev) * 100));
+
+        html += `
+        <div>
+           <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:800; color:#1e293b; margin-bottom:4px;">
+              <span>🥭 ${catName}</span>
+              <span>₹${rev.toLocaleString('en-IN')} (${percent}%)</span>
+           </div>
+           <div style="width:100%; height:10px; background:#f1f5f9; border-radius:10px; overflow:hidden;">
+              <div style="width:${barWidth}%; height:100%; background:linear-gradient(90deg, #0b6e38 0%, #16a34a 100%); border-radius:10px; transition:width 0.5s ease;"></div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function renderPaymentBreakdown(paymentMap, totalOrders) {
+    const container = document.getElementById("analyticsPaymentBreakdown");
+    if (!container) return;
+
+    const upi = paymentMap.UPI || 0;
+    const cod = paymentMap.COD || 0;
+    const upiPercent = totalOrders > 0 ? Math.round((upi / totalOrders) * 100) : 0;
+    const codPercent = totalOrders > 0 ? Math.round((cod / totalOrders) * 100) : 0;
+
+    container.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:12px;">
+       <div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:800; color:#0b6e38; margin-bottom:4px;">
+             <span>📱 UPI & QR Code (Instant Disc)</span>
+             <span>${upi} orders (${upiPercent}%)</span>
+          </div>
+          <div style="width:100%; height:10px; background:#f1f5f9; border-radius:10px; overflow:hidden;">
+             <div style="width:${upiPercent}%; height:100%; background:#16a34a; border-radius:10px;"></div>
+          </div>
+       </div>
+
+       <div>
+          <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:800; color:#b45309; margin-bottom:4px;">
+             <span>💵 Cash on Delivery (COD)</span>
+             <span>${cod} orders (${codPercent}%)</span>
+          </div>
+          <div style="width:100%; height:10px; background:#f1f5f9; border-radius:10px; overflow:hidden;">
+             <div style="width:${codPercent}%; height:100%; background:#d97706; border-radius:10px;"></div>
+          </div>
+       </div>
+    </div>`;
+}
+
+function renderStatusBreakdown(statusMap, totalOrders) {
+    const container = document.getElementById("analyticsStatusBreakdown");
+    if (!container) return;
+
+    const del = statusMap.DELIVERED || 0;
+    const proc = (statusMap.PROCESSING || 0) + (statusMap.PENDING || 0);
+    const canc = statusMap.CANCELLED || 0;
+
+    container.innerHTML = `
+    <div style="display:flex; flex-direction:column; gap:8px; font-size:12px;">
+       <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px;">
+          <span style="font-weight:800; color:#166534;">✅ Delivered / Completed</span>
+          <span style="font-weight:900; color:#166534;">${del}</span>
+       </div>
+       <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#fefce8; border:1px solid #fef08a; border-radius:10px;">
+          <span style="font-weight:800; color:#854d0e;">⏳ Processing / Pending</span>
+          <span style="font-weight:900; color:#854d0e;">${proc}</span>
+       </div>
+       <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#fff1f2; border:1px solid #fca5a5; border-radius:10px;">
+          <span style="font-weight:800; color:#991b1b;">❌ Cancelled</span>
+          <span style="font-weight:900; color:#991b1b;">${canc}</span>
+       </div>
+    </div>`;
+}
+
+function renderTopProductsTable(prodMap) {
+    const tbody = document.getElementById("analyticsTopProductsBody");
+    if (!tbody) return;
+
+    const items = Object.values(prodMap);
+    if (items.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:#94a3b8;">No item sales data found.</td></tr>`;
+        return;
+    }
+
+    items.sort((a,b) => b.revenue - a.revenue);
+
+    let html = "";
+    items.slice(0, 10).forEach(item => {
+        html += `
+        <tr style="border-bottom:1px solid #f1f5f9;">
+           <td style="padding:10px; font-weight:800; color:#0f172a;">${item.name}</td>
+           <td style="padding:10px; color:#0b6e38; font-weight:700;">${item.cat}</td>
+           <td style="padding:10px; text-align:center; font-weight:800;">${item.units}</td>
+           <td style="padding:10px; text-align:right; font-weight:900; color:#0f172a;">₹${item.revenue.toLocaleString('en-IN')}</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = html;
+}
+
+function renderBusinessInsights(rev, count, aov, payMap, catMap) {
+    const box = document.getElementById("analyticsInsightsBox");
+    if (!box) return;
+
+    const upiCount = payMap.UPI || 0;
+    const upiRatio = count > 0 ? Math.round((upiCount / count) * 100) : 0;
+
+    let topCatName = "Pickles";
+    let topCatRev = 0;
+    Object.entries(catMap).forEach(([k,v]) => {
+        if (v > topCatRev) {
+            topCatRev = v;
+            topCatName = k;
+        }
+    });
+
+    box.innerHTML = `
+    <ul style="margin:0; padding-left:18px; display:flex; flex-direction:column; gap:6px;">
+       <li><strong>High Digital Adoption:</strong> ${upiRatio}% of customers pay via UPI to claim instant discounts, reducing cash handling risks.</li>
+       <li><strong>Top Revenue Category:</strong> <em>${topCatName}</em> generates the highest sales revenue share across all product lines.</li>
+       <li><strong>Basket Size Strategy:</strong> Your average order value is <strong>₹${aov}</strong>. Encourage customers to hit ₹500 for Free Shipping to boost cart size.</li>
+       <li><strong>Store Operations:</strong> Ensure inventory levels for fast-moving raw mango & stuffed chilli items are maintained to minimize stockouts.</li>
+    </ul>`;
+}
+
+window.exportAnalyticsCSV = function() {
+    if (!rawAnalyticsOrders || rawAnalyticsOrders.length === 0) {
+        return alert("No order data available to export.");
+    }
+
+    let csvContent = "data:text/csv;charset=utf-8,Order ID,Customer Name,Mobile,Date,Payment Mode,Subtotal,Delivery,Discount,Total,Status\n";
+
+    rawAnalyticsOrders.forEach(o => {
+        const id = o.id || o.orderId || "";
+        const name = (o.customerName || o.name || "").replace(/,/g, " ");
+        const mobile = o.mobile || "";
+        const date = (o.date || o.createdAt || "").replace(/,/g, " ");
+        const mode = o.paymentMode || "UPI";
+        const subtotal = o.subtotal || 0;
+        const delivery = o.delivery || 0;
+        const discount = o.discount || 0;
+        const total = o.total || 0;
+        const status = o.status || "PENDING";
+
+        csvContent += `"${id}","${name}","${mobile}","${date}","${mode}",${subtotal},${delivery},${discount},${total},"${status}"\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `AaharShree_Analytics_Report_${Date.now()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+</script>

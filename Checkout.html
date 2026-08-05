@@ -1,0 +1,106 @@
+<div id="checkoutScreen" class="screen">
+  <header class="topBar">
+    <button class="back-btn" onclick="showCart()">← Back</button>
+    <h2 class="brand-name">Checkout</h2>
+    <div></div>
+  </header>
+
+  <div style="padding:15px; padding-bottom:120px;">
+    <!-- Delivery Address (Preserved) -->
+    <div id="deliveryAddress" style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px;"></div>
+
+    <!-- WELL-DETAILED Order Summary -->
+    <div style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+       <h3 style="margin-bottom:12px; color:var(--primary); font-size:16px; border-bottom:1px solid #f0f0f0; padding-bottom:8px;">🛒 Order Summary</h3>
+       <div id="checkoutItemsList">
+          <!-- Itemized details injected here -->
+       </div>
+    </div>
+
+    <!-- PRE-ORDER & BULK ORDER ADVANCE PAYMENT POLICY NOTICE -->
+    <div id="preOrderBulkPolicyNotice" style="display:none; background:#fff7ed; border:1px solid #fdba74; border-radius:16px; padding:12px 15px; margin-bottom:15px; box-shadow:0 2px 8px rgba(249,115,22,0.1);">
+       <div style="font-size:12px; font-weight:800; color:#c2410c; display:flex; align-items:center; gap:6px;">
+          <span>⚡</span> <span>Advance Payment Mandatory (Pre-Order / Bulk Items)</span>
+       </div>
+       <div style="font-size:11px; color:#9a3412; margin-top:4px; line-height:1.4;">
+          • <strong>No Cash On Delivery:</strong> Advance Online Payment (UPI) is required for pre-booked batches & wholesale bulk orders.<br>
+          • <strong>No Promotional Discounts:</strong> Extra discount coupons do not apply on reserved pre-order batches or bulk wholesale items.
+       </div>
+    </div>
+
+    <!-- Coupon Code -->
+    <div style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+       <h3 style="margin-bottom:10px; color:var(--primary); font-size:15px;">🎟️ Coupon Code</h3>
+       <div id="couponSummaryCard" style="margin-bottom:10px;"></div>
+       <div style="display:flex; gap:8px;">
+          <input id="couponCodeInput" placeholder="Enter coupon code" style="flex:1; padding:12px; border-radius:10px; border:1.5px solid #eee; font-size:14px;">
+          <button type="button" onclick="applyCouponCode()" style="background:var(--primary); color:white; border:none; padding:10px 14px; border-radius:10px; font-weight:700;">Apply</button>
+       </div>
+       <div id="couponMessage" style="font-size:12px; margin-top:8px; color:#64748b;"></div>
+    </div>
+
+    <!-- Payment Method -->
+    <div style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+       <h3 style="margin-bottom:10px; color:var(--primary); font-size:15px;">💳 Payment Method</h3>
+       <select id="paymentMode" onchange="togglePaymentUI()" style="width:100%; padding:12px; border-radius:10px; border:1.5px solid #eee; font-size:14px; font-weight:600; color:#333;">
+          <option value="COD" id="codOption">Cash on Delivery (Full Price)</option>
+          <option value="UPI" id="upiOptionLabel">Pay via QR (Online / Advance)</option>
+       </select>
+       <div id="codDisabledNotice" style="display:none; font-size:10px; font-weight:800; color:#dc2626; margin-top:6px;">
+          🚫 Cash on Delivery is disabled because your cart contains Pre-Order or Bulk items.
+       </div>
+    </div>
+
+    <!-- Dynamic QR Container -->
+    <div id="qrContainer" style="display:none; text-align:center; border: 2px dashed var(--primary); padding: 15px; background: #f9fff9; border-radius:18px; margin-bottom:15px;">
+       <p style="font-weight:bold; color:#d32f2f; margin-bottom:10px;">Pay exactly ₹<span id="qrAmount">0</span> via UPI</p>
+       <img id="upiQR" src="" style="width:200px; height:200px; border-radius:10px; margin-bottom:10px; border:1px solid #eee;">
+       <p style="font-size:11px; color:#666;">Scan and pay to complete order</p>
+    </div>
+
+    <!-- Points Redemption Section (1 Point = ₹1, up to 20% concession) -->
+    <div id="checkoutPointsBox" style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px; display:none;">
+       <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h3 style="margin:0; color:#b45309; font-size:15px; font-weight:800;">🪙 Redeem Reward Points</h3>
+          <span style="font-size:11px; font-weight:800; background:#fef3c7; color:#b45309; padding:3px 8px; border-radius:999px;">1 Point = ₹1</span>
+       </div>
+       <div style="font-size:12px; color:#64748b; margin-top:6px;">
+          Available: <strong id="availablePointsText" style="color:#0f172a;">0 Points (₹0)</strong> • Max redemption cap: <span id="maxPointsConcessionText" style="font-weight:700;">₹0 (20% max)</span>
+       </div>
+       <label style="display:flex; align-items:center; gap:8px; margin-top:10px; font-size:13px; font-weight:700; color:#0f172a; cursor:pointer;">
+          <input type="checkbox" id="redeemPointsCheckbox" onchange="togglePointsRedemption()" style="width:18px; height:18px; accent-color:#d97706;">
+          Use <span id="pointsToRedeemLabel">0</span> Points for <span id="pointsDiscountValueLabel">₹0</span> discount
+       </label>
+    </div>
+
+    <!-- DETAILED CALCULATION BREAKDOWN -->
+    <div style="background:white; padding:15px; border-radius:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+       <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:14px; color:#555;">
+          <span>Items Total</span>
+          <span id="summarySubtotal" style="font-weight:600; color:#222;">₹0</span>
+       </div>
+       <div style="display:flex; justify-content:space-between; margin-bottom:10px; font-size:14px; color:#555;">
+          <span>Delivery Charges</span>
+          <span id="summaryDelivery" style="font-weight:600; color:#222;">₹0</span>
+       </div>
+       <div id="couponDiscountRow" style="display:none; justify-content:space-between; margin-bottom:10px; color:#15803d; font-weight:700; font-size:14px;">
+          <span>Coupon Discount</span>
+          <span id="couponDiscAmount">-₹0</span>
+       </div>
+       <div id="pointsConcessionRow" style="display:none; justify-content:space-between; margin-bottom:10px; color:#d97706; font-weight:700; font-size:14px;">
+          <span>🪙 Points Concession</span>
+          <span id="pointsConcessionAmount">-₹0</span>
+       </div>
+       <div id="upiDiscountRow" style="display:none; justify-content:space-between; margin-bottom:10px; color:var(--primary); font-weight:700; font-size:14px;">
+          <span>UPI Instant Discount</span>
+          <span id="upiDiscAmount">-₹0</span>
+       </div>
+       <div style="display:flex; justify-content:space-between; margin-top:10px; padding-top:12px; border-top:2px solid #f8f8f8; font-weight:800; font-size:18px; color:#000;">
+          <span>Net Payable</span>
+          <span id="summaryTotal">₹0</span>
+       </div>
+    </div>
+
+    <button class="primaryButton" id="placeOrderBtn" style="box-shadow: 0 10px 20px rgba(20,143,66,0.2);" onclick="placeOrder()">Confirm & Place Order</button>
+  </div>
+</div>

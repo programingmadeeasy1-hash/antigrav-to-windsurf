@@ -1,0 +1,65 @@
+<script>
+function togglePasswordVisibility(fieldId, btn) {
+    const input = document.getElementById(fieldId);
+    if (!input) return;
+    input.type = input.type === "password" ? "text" : "password";
+    btn.innerText = input.type === "password" ? "👁️" : "🙈";
+}
+
+function showLoginAlert(msg, isSuccess = false) {
+    const box = document.getElementById("loginAlertBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.style.background = isSuccess ? "#d1fae5" : "#fef2f2";
+    box.style.color = isSuccess ? "#065f46" : "#991b1b";
+    box.innerText = msg;
+}
+
+function submitLogin() {
+    const identifier = document.getElementById("loginIdentifier").value.trim();
+    const password = document.getElementById("loginPassword").value.trim();
+
+    if (!identifier || !password) {
+        showLoginAlert("Please enter both mobile/email and password.");
+        return;
+    }
+
+    showLoading("Verifying credentials...");
+
+    // Matches the 'credentials' object expected by Authentication.gs
+    server("authenticateUser", { identifier: identifier, password: password })
+    .then(response => {
+        hideLoading();
+        if (response && response.success) {
+            const userPayload = response.user || {
+                id: response.id,
+                name: response.name || identifier,
+                role: response.role || "CUSTOMER"
+            };
+            App.user = userPayload;
+            localStorage.setItem("aaharshree_user", JSON.stringify(userPayload));
+            localStorage.removeItem("admin");
+            if (response.destination === "ADMIN") {
+                localStorage.setItem("admin", JSON.stringify(userPayload));
+            }
+            showLoginAlert("Login successful! Redirecting...", true);
+            
+            setTimeout(() => {
+                if (response.destination === "ADMIN") {
+                    showScreen("dashboardScreen");
+                } else {
+                    showScreen(App.returnToCheckout ? "checkoutScreen" : "homeScreen");
+                    App.returnToCheckout = false;
+                }
+            }, 500);
+        } else {
+            showLoginAlert(response.message || "Invalid credentials. Use your sheet-based admin details or register as a customer.");
+        }
+    })
+    .catch(err => {
+        hideLoading();
+        const message = err && err.message ? err.message : "Connection error. Please try again.";
+        showLoginAlert(message);
+    });
+}
+</script>

@@ -1,0 +1,643 @@
+<script>
+let currentAdminFaqs = [];
+let currentAdminSidebarItems = [];
+
+window.switchSettingsTab = function(tabKey) {
+    const tabs = ['delivery', 'payment', 'announcements', 'invoice', 'faqs', 'sidebar', 'vision', 'ops', 'sheetcontent'];
+    tabs.forEach(t => {
+        const sec = document.getElementById("setSec" + t.charAt(0).toUpperCase() + t.slice(1));
+        const btn = document.getElementById("setTabBtn" + t.charAt(0).toUpperCase() + t.slice(1));
+        
+        if (sec) {
+            sec.style.display = (t === tabKey) ? "block" : "none";
+        }
+        if (btn) {
+            if (t === tabKey) {
+                btn.style.background = "var(--primary)";
+                btn.style.color = "white";
+                btn.style.borderColor = "var(--primary)";
+            } else {
+                btn.style.background = "#f1f5f9";
+                btn.style.color = "#475569";
+                btn.style.borderColor = "#cbd5e1";
+            }
+        }
+    });
+
+    if (tabKey === 'vision') {
+        window.switchVisionSubTab('pills');
+    }
+};
+
+/**
+ * Loads settings from Spreadsheet/LocalStorage and fills input fields
+ */
+function loadSettings() {
+    if (typeof showLoading === 'function') showLoading("Fetching Business Settings...");
+    console.log("Admin: Fetching settings...");
+
+    server("getAllSettings").then(s => {
+        if (typeof hideLoading === 'function') hideLoading();
+        s = s || {};
+
+        if (document.getElementById("setDeliveryCharge")) document.getElementById("setDeliveryCharge").value = s.DELIVERY_CHARGE ?? 50;
+        if (document.getElementById("setFreeDeliveryLimit")) document.getElementById("setFreeDeliveryLimit").value = s.FREE_DELIVERY_LIMIT ?? 500;
+        if (document.getElementById("setUpiDiscount")) document.getElementById("setUpiDiscount").value = s.UPI_DISCOUNT ?? 225;
+        if (document.getElementById("setUpiId")) document.getElementById("setUpiId").value = s.UPI_ID || "q2106030721@ybl";
+
+        if (document.getElementById("setMinOrderValue")) document.getElementById("setMinOrderValue").value = s.MIN_ORDER_VALUE ?? 299;
+        if (document.getElementById("setCodFee")) document.getElementById("setCodFee").value = s.COD_HANDLING_FEE ?? 0;
+        if (document.getElementById("setAnnouncementBanner")) document.getElementById("setAnnouncementBanner").value = s.ANNOUNCEMENT_BANNER || "🌾 Fresh sun-dried batches prepared weekly! Free home delivery above ₹500";
+        if (document.getElementById("setSupportWhatsapp")) document.getElementById("setSupportWhatsapp").value = s.SUPPORT_WHATSAPP || "9876543210";
+        if (document.getElementById("setTaxPercentage")) document.getElementById("setTaxPercentage").value = s.TAX_PERCENTAGE ?? 0;
+
+        if (document.getElementById("setInvoiceStoreName")) document.getElementById("setInvoiceStoreName").value = s.INVOICE_STORE_NAME || "AaharShree Natural Kitchens";
+        if (document.getElementById("setInvoiceTagline")) document.getElementById("setInvoiceTagline").value = s.INVOICE_TAGLINE || "100% Homemade, Sun-Dried Organic Pickles";
+        if (document.getElementById("setInvoiceFssai")) document.getElementById("setInvoiceFssai").value = s.INVOICE_FSSAI || "11521021000456";
+        if (document.getElementById("setInvoiceGstin")) document.getElementById("setInvoiceGstin").value = s.INVOICE_GSTIN || "27AAAAA0000A1Z5";
+        if (document.getElementById("setInvoiceAddress")) document.getElementById("setInvoiceAddress").value = s.INVOICE_ADDRESS || "Plot No. 42, Green Agro Food Park, Kothrud, Pune, Maharashtra - 411038";
+        if (document.getElementById("setInvoicePhone")) document.getElementById("setInvoicePhone").value = s.INVOICE_PHONE || "+91 98765 43210";
+        if (document.getElementById("setInvoiceEmail")) document.getElementById("setInvoiceEmail").value = s.INVOICE_EMAIL || "billing@aaharshreenaturals.com";
+        if (document.getElementById("setInvoiceTerms")) document.getElementById("setInvoiceTerms").value = s.INVOICE_TERMS || "Store in a cool dry place. Always use a clean & dry spoon. 100% Natural & Sun-aged.";
+        if (document.getElementById("setInvoiceParcelNote")) document.getElementById("setInvoiceParcelNote").value = s.INVOICE_PARCEL_NOTE || "Packed with Care & Freshly Sealed. Tax Invoice included for parcel dispatch.";
+
+        updateSettingsSimulator();
+        loadSupportFaqsAdmin();
+        loadSidebarConfigAdmin();
+        renderSettingsMasterShutdown();
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Settings Load Error:", err);
+        alert("Failed to load settings: " + (err.message || err));
+    });
+}
+
+/**
+ * Loads support helpline & FAQ content for admin editing
+ */
+function loadSupportFaqsAdmin() {
+    server("getSupportFaqs").then(data => {
+        data = data || {};
+        if (document.getElementById("setSupportPhone")) document.getElementById("setSupportPhone").value = data.phone || "+91 98765 43210";
+        if (document.getElementById("setSupportEmail")) document.getElementById("setSupportEmail").value = data.email || "support@aaharshreenaturals.com";
+        if (document.getElementById("setSupportAddress")) document.getElementById("setSupportAddress").value = data.address || "AaharShree Natural Kitchens, Pune, Maharashtra";
+        if (document.getElementById("setSupportHours")) document.getElementById("setSupportHours").value = data.workingHours || "Mon - Sat: 9:00 AM - 8:00 PM IST";
+
+        currentAdminFaqs = data.faqs || [];
+        renderAdminFaqList();
+    }).catch(err => {
+        console.error("Support FAQs Load Error:", err);
+    });
+}
+
+function renderAdminFaqList() {
+    const container = document.getElementById("adminFaqListContainer");
+    if (!container) return;
+
+    if (!currentAdminFaqs || currentAdminFaqs.length === 0) {
+        container.innerHTML = `<p style="font-size:11px; color:#94a3b8; text-align:center;">No FAQ items yet. Click '+ Add Question' to create one.</p>`;
+        return;
+    }
+
+    let html = "";
+    currentAdminFaqs.forEach((faq, idx) => {
+        html += `
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:10px;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <span style="font-size:11px; font-weight:800; color:#0b6e38;">FAQ #${idx+1}</span>
+              <button type="button" onclick="deleteFaqItemAdmin(${idx})" style="background:#fee2e2; color:#991b1b; border:none; padding:2px 8px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer;">Delete 🗑️</button>
+           </div>
+           <input type="text" id="faqQ_${idx}" value="${faq.question || ''}" placeholder="Question text..." style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-weight:700; margin-bottom:4px;">
+           <textarea id="faqA_${idx}" rows="2" placeholder="Answer text..." style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-family:inherit;">${faq.answer || ''}</textarea>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function addNewFaqItemAdmin() {
+    currentAdminFaqs.push({
+        id: "FAQ_" + Date.now(),
+        question: "New Question Title",
+        answer: "Detailed answer text for customers...",
+        status: "ACTIVE"
+    });
+    renderAdminFaqList();
+}
+
+function deleteFaqItemAdmin(index) {
+    if (confirm("Delete this FAQ item?")) {
+        currentAdminFaqs.splice(index, 1);
+        renderAdminFaqList();
+    }
+}
+
+/**
+ * Loads sidebar menu configuration for admin editing
+ */
+function loadSidebarConfigAdmin() {
+    server("getSidebarConfig").then(items => {
+        currentAdminSidebarItems = items || [];
+        renderAdminSidebarConfig();
+    }).catch(err => {
+        console.error("Sidebar Config Load Error:", err);
+    });
+}
+
+function renderAdminSidebarConfig() {
+    const container = document.getElementById("adminSidebarConfigContainer");
+    if (!container) return;
+
+    if (!currentAdminSidebarItems || currentAdminSidebarItems.length === 0) {
+        container.innerHTML = `<p style="font-size:11px; color:#94a3b8; text-align:center;">No sidebar config found.</p>`;
+        return;
+    }
+
+    let html = "";
+    currentAdminSidebarItems.forEach((item, idx) => {
+        html += `
+        <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:12px; padding:10px; display:grid; grid-template-columns:40px 1fr 80px; gap:8px; align-items:center;">
+           <div>
+              <input type="text" id="sbIcon_${idx}" value="${item.icon || '📌'}" style="width:100%; text-align:center; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:14px;">
+           </div>
+           <div>
+              <input type="text" id="sbLabel_${idx}" value="${item.label || ''}" style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-weight:700;">
+           </div>
+           <div>
+              <select id="sbActive_${idx}" style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:10px; font-weight:800; background:white;">
+                 <option value="true" ${item.active !== false ? 'selected' : ''}>Active</option>
+                 <option value="false" ${item.active === false ? 'selected' : ''}>Hidden</option>
+              </select>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Recalculates live checkout simulator in real-time
+ */
+function updateSettingsSimulator() {
+    const subtotal = parseFloat(document.getElementById("simCartAmount")?.value) || 0;
+    const delCharge = parseFloat(document.getElementById("setDeliveryCharge")?.value) || 0;
+    const freeLimit = parseFloat(document.getElementById("setFreeDeliveryLimit")?.value) || 0;
+    const upiDisc = parseFloat(document.getElementById("setUpiDiscount")?.value) || 0;
+    const minOrder = parseFloat(document.getElementById("setMinOrderValue")?.value) || 0;
+
+    const isFreeDel = subtotal >= freeLimit;
+    const actualDel = isFreeDel ? 0 : delCharge;
+    const netPayable = Math.max(0, subtotal + actualDel - upiDisc);
+
+    if (document.getElementById("simValSubtotal")) document.getElementById("simValSubtotal").innerText = "₹" + subtotal;
+    if (document.getElementById("simValDelivery")) {
+        document.getElementById("simValDelivery").innerHTML = isFreeDel 
+            ? "<span style='color:#16a34a;'>FREE</span>" 
+            : "₹" + actualDel;
+    }
+    if (document.getElementById("simValUpiDiscount")) document.getElementById("simValUpiDiscount").innerText = "-₹" + upiDisc;
+    if (document.getElementById("simValNetPayable")) document.getElementById("simValNetPayable").innerText = "₹" + netPayable;
+
+    const noteBox = document.getElementById("simValStatusNote");
+    if (noteBox) {
+        if (subtotal < minOrder) {
+            noteBox.style.background = "#fef2f2";
+            noteBox.style.color = "#991b1b";
+            noteBox.innerHTML = `⚠️ Subtotal ₹${subtotal} is below Minimum Order Limit (₹${minOrder}). Order won't proceed at checkout!`;
+        } else if (isFreeDel) {
+            noteBox.style.background = "#f0fdf4";
+            noteBox.style.color = "#15803d";
+            noteBox.innerHTML = `✅ Qualifies for FREE Delivery (Subtotal ₹${subtotal} ≥ ₹${freeLimit}) + ₹${upiDisc} Instant UPI Discount!`;
+        } else {
+            noteBox.style.background = "#fffbe0";
+            noteBox.style.color = "#854d0e";
+            noteBox.innerHTML = `📦 Standard Delivery Fee ₹${actualDel} applies (Add ₹${freeLimit - subtotal} more for FREE delivery).`;
+        }
+    }
+}
+
+/**
+ * Saves updated business settings, support helpline/FAQs, and sidebar configuration
+ */
+function saveSettingsAdmin() {
+    const deliveryCharge = document.getElementById("setDeliveryCharge")?.value;
+    const freeDeliveryLimit = document.getElementById("setFreeDeliveryLimit")?.value;
+    const upiDiscount = document.getElementById("setUpiDiscount")?.value;
+    const upiId = document.getElementById("setUpiId")?.value.trim();
+
+    const minOrderValue = document.getElementById("setMinOrderValue")?.value;
+    const codFee = document.getElementById("setCodFee")?.value;
+    const announcementBanner = document.getElementById("setAnnouncementBanner")?.value.trim();
+    const supportWhatsapp = document.getElementById("setSupportWhatsapp")?.value.trim();
+    const taxPercentage = document.getElementById("setTaxPercentage")?.value;
+
+    const invoiceStoreName = document.getElementById("setInvoiceStoreName")?.value.trim() || "AaharShree Natural Kitchens";
+    const invoiceTagline = document.getElementById("setInvoiceTagline")?.value.trim() || "100% Homemade, Sun-Dried Organic Pickles";
+    const invoiceFssai = document.getElementById("setInvoiceFssai")?.value.trim() || "11521021000456";
+    const invoiceGstin = document.getElementById("setInvoiceGstin")?.value.trim() || "27AAAAA0000A1Z5";
+    const invoiceAddress = document.getElementById("setInvoiceAddress")?.value.trim() || "Plot No. 42, Green Agro Food Park, Kothrud, Pune, Maharashtra - 411038";
+    const invoicePhone = document.getElementById("setInvoicePhone")?.value.trim() || "+91 98765 43210";
+    const invoiceEmail = document.getElementById("setInvoiceEmail")?.value.trim() || "billing@aaharshreenaturals.com";
+    const invoiceTerms = document.getElementById("setInvoiceTerms")?.value.trim() || "Store in a cool dry place. Always use a clean & dry spoon. 100% Natural & Sun-aged.";
+    const invoiceParcelNote = document.getElementById("setInvoiceParcelNote")?.value.trim() || "Packed with Care & Freshly Sealed. Tax Invoice included for parcel dispatch.";
+
+    if (typeof showLoading === 'function') showLoading("Saving All Business Settings & Customizations...");
+
+    const payload = {
+        DELIVERY_CHARGE: deliveryCharge,
+        FREE_DELIVERY_LIMIT: freeDeliveryLimit,
+        UPI_DISCOUNT: upiDiscount,
+        UPI_ID: upiId,
+        MIN_ORDER_VALUE: minOrderValue,
+        COD_HANDLING_FEE: codFee,
+        ANNOUNCEMENT_BANNER: announcementBanner,
+        SUPPORT_WHATSAPP: supportWhatsapp,
+        TAX_PERCENTAGE: taxPercentage,
+        INVOICE_STORE_NAME: invoiceStoreName,
+        INVOICE_TAGLINE: invoiceTagline,
+        INVOICE_FSSAI: invoiceFssai,
+        INVOICE_GSTIN: invoiceGstin,
+        INVOICE_ADDRESS: invoiceAddress,
+        INVOICE_PHONE: invoicePhone,
+        INVOICE_EMAIL: invoiceEmail,
+        INVOICE_TERMS: invoiceTerms,
+        INVOICE_PARCEL_NOTE: invoiceParcelNote
+    };
+
+    // Gather updated FAQ inputs
+    const updatedFaqs = currentAdminFaqs.map((faq, idx) => {
+        const qEl = document.getElementById(`faqQ_${idx}`);
+        const aEl = document.getElementById(`faqA_${idx}`);
+        return {
+            ...faq,
+            question: qEl ? qEl.value.trim() : faq.question,
+            answer: aEl ? aEl.value.trim() : faq.answer
+        };
+    });
+
+    const supportPayload = {
+        phone: document.getElementById("setSupportPhone")?.value.trim() || "+91 98765 43210",
+        whatsapp: supportWhatsapp || "+91 98765 43210",
+        email: document.getElementById("setSupportEmail")?.value.trim() || "support@aaharshreenaturals.com",
+        address: document.getElementById("setSupportAddress")?.value.trim() || "AaharShree Natural Kitchens, Pune, Maharashtra",
+        workingHours: document.getElementById("setSupportHours")?.value.trim() || "Mon - Sat: 9:00 AM - 8:00 PM IST",
+        faqs: updatedFaqs
+    };
+
+    // Gather updated Sidebar configuration
+    const updatedSidebar = currentAdminSidebarItems.map((item, idx) => {
+        const iconEl = document.getElementById(`sbIcon_${idx}`);
+        const labelEl = document.getElementById(`sbLabel_${idx}`);
+        const activeEl = document.getElementById(`sbActive_${idx}`);
+        return {
+            ...item,
+            icon: iconEl ? iconEl.value.trim() : item.icon,
+            label: labelEl ? labelEl.value.trim() : item.label,
+            active: activeEl ? (activeEl.value === "true") : item.active
+        };
+    });
+
+    Promise.all([
+        server("saveSettings", payload),
+        server("saveSupportFaqs", supportPayload),
+        server("saveSidebarConfig", updatedSidebar)
+    ])
+    .then(() => {
+        if (typeof hideLoading === 'function') hideLoading();
+        
+        const banner = document.getElementById("settingsStatusBanner");
+        const msg = document.getElementById("settingsStatusMsg");
+        const timeLbl = document.getElementById("settingsStatusTime");
+        const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        if (banner) {
+            banner.style.display = "flex";
+            if (msg) msg.innerText = "All Settings, FAQs & Hamburger Menu Customizations Saved!";
+            if (timeLbl) timeLbl.innerText = `Activated Live at ${now}`;
+            banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        alert(`✅ Configuration & Customizations Saved Successfully!`);
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Save Settings Error:", err);
+        alert("Failed to save settings: " + (err.message || err));
+    });
+}
+
+/**
+ * Renders Master Shutdown Control in Settings UI
+ */
+window.renderSettingsMasterShutdown = function() {
+    const container = document.getElementById("settingsMasterShutdownArea");
+    if (!container) return;
+
+    const isMaintenanceActive = localStorage.getItem("app_maintenance_mode") === "true";
+
+    container.innerHTML = `
+      <div style="background:${isMaintenanceActive ? '#fffbeb' : '#f8fafc'}; border:1px solid ${isMaintenanceActive ? '#fcd34d' : '#e2e8f0'}; border-radius:12px; padding:14px; transition:all 0.2s;">
+         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+            <div style="display:flex; align-items:center; gap:10px;">
+               <div style="width:10px; height:10px; border-radius:50%; background:${isMaintenanceActive ? '#d97706' : '#16a34a'}; box-shadow:0 0 0 3px ${isMaintenanceActive ? '#fef3c7' : '#dcfce7'}; flex-shrink:0;"></div>
+               <div>
+                  <strong style="font-size:13px; color:${isMaintenanceActive ? '#92400e' : '#0f172a'}; font-weight:800; display:block;">
+                     ${isMaintenanceActive ? 'Maintenance Mode: ACTIVE (Ordering Paused)' : 'Store Status: ONLINE & ACTIVE'}
+                  </strong>
+                  <span style="font-size:11px; color:${isMaintenanceActive ? '#b45309' : '#64748b'}; margin-top:2px; display:block;">
+                     ${isMaintenanceActive ? 'Customer store displays maintenance notice & cart ordering is paused.' : 'Store is open and processing customer orders normally.'}
+                  </span>
+               </div>
+            </div>
+            <button type="button" onclick="window.handleMasterShutdownToggle(!${isMaintenanceActive})" 
+                    style="background:${isMaintenanceActive ? '#0b6e38' : '#f1f5f9'}; color:${isMaintenanceActive ? '#ffffff' : '#475569'}; border:${isMaintenanceActive ? 'none' : '1px solid #cbd5e1'}; padding:8px 14px; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer; transition:all 0.2s;">
+               ${isMaintenanceActive ? '▶ Re-Open Store' : '⏸ Pause Store Ordering'}
+            </button>
+         </div>
+      </div>`;
+};
+
+// ======================================================
+// ADMIN VISION PILLS & CLEAN FOOD CONTENT MANAGER
+// ======================================================
+window.adminArtisanProfiles = [];
+window.adminGratitudeNotes = [];
+
+window.switchVisionSubTab = function(mode) {
+    const pillsSec = document.getElementById("visionSubSecPills");
+    const artisanSec = document.getElementById("visionSubSecArtisan");
+    const pillsBtn = document.getElementById("visionSubTabPillsBtn");
+    const artisanBtn = document.getElementById("visionSubTabArtisanBtn");
+
+    if (mode === 'pills') {
+        if (pillsSec) pillsSec.style.display = "block";
+        if (artisanSec) artisanSec.style.display = "none";
+        if (pillsBtn) {
+            pillsBtn.style.background = "#0b6e38";
+            pillsBtn.style.color = "#ffffff";
+            pillsBtn.style.borderColor = "#0b6e38";
+        }
+        if (artisanBtn) {
+            artisanBtn.style.background = "#fff1f2";
+            artisanBtn.style.color = "#be123c";
+            artisanBtn.style.borderColor = "#fecdd3";
+        }
+        window.loadAdminVisionTopic(document.getElementById("adminVisionTopicSelect")?.value || "zero-preservatives");
+    } else {
+        if (pillsSec) pillsSec.style.display = "none";
+        if (artisanSec) artisanSec.style.display = "flex";
+        if (pillsBtn) {
+            pillsBtn.style.background = "#f0fdf4";
+            pillsBtn.style.color = "#166534";
+            pillsBtn.style.borderColor = "#bbf7d0";
+        }
+        if (artisanBtn) {
+            artisanBtn.style.background = "#be123c";
+            artisanBtn.style.color = "#ffffff";
+            artisanBtn.style.borderColor = "#be123c";
+        }
+        window.loadAdminArtisanStory();
+    }
+};
+
+window.loadAdminVisionTopic = function(topicId) {
+    server("getVisionPillsData").then(data => {
+        if (!data) return;
+        const pill = data[topicId] || {};
+        if (document.getElementById("adminVisionTitle")) document.getElementById("adminVisionTitle").value = pill.title || "";
+        if (document.getElementById("adminVisionBadge")) document.getElementById("adminVisionBadge").value = pill.badge || "";
+        if (document.getElementById("adminVisionSubtitle")) document.getElementById("adminVisionSubtitle").value = pill.subtitle || "";
+        if (document.getElementById("adminVisionCommercial")) document.getElementById("adminVisionCommercial").value = pill.commercialReality || "";
+        if (document.getElementById("adminVisionAaharshree")) document.getElementById("adminVisionAaharshree").value = pill.aaharshreeVision || "";
+        if (document.getElementById("adminVisionBody")) document.getElementById("adminVisionBody").value = pill.bodyText || "";
+        if (document.getElementById("adminVisionHighlights")) document.getElementById("adminVisionHighlights").value = (pill.highlights || []).join("\n");
+    });
+};
+
+window.saveAdminVisionPill = function() {
+    const topicId = document.getElementById("adminVisionTopicSelect")?.value || "zero-preservatives";
+
+    const highlightsRaw = document.getElementById("adminVisionHighlights").value || "";
+    const highlights = highlightsRaw.split("\n").map(s => s.trim()).filter(Boolean);
+
+    const payload = {
+        id: topicId,
+        title: document.getElementById("adminVisionTitle").value.trim(),
+        badge: document.getElementById("adminVisionBadge").value.trim(),
+        subtitle: document.getElementById("adminVisionSubtitle").value.trim(),
+        commercialReality: document.getElementById("adminVisionCommercial").value.trim(),
+        aaharshreeVision: document.getElementById("adminVisionAaharshree").value.trim(),
+        bodyText: document.getElementById("adminVisionBody").value.trim(),
+        highlights: highlights
+    };
+
+    server("saveVisionPillData", payload).then(res => {
+        if (res && res.success) {
+            alert(`✅ Vision Pill '${payload.title}' updated successfully by Master Owner!`);
+            window.visionPillsCache = null;
+            if (typeof window.loadAndRenderVisionBlog === 'function') window.loadAndRenderVisionBlog();
+        } else {
+            alert("Error saving vision pill: " + (res?.error || "Unknown failure"));
+        }
+    }).catch(err => {
+        console.error("Save vision pill error:", err);
+        alert("Failed to save vision pill data");
+    });
+};
+
+// ARTISAN CRAFTSWOMEN & CUSTOMER REVIEWS CONTROLLER
+window.loadAdminArtisanStory = function() {
+    server("getArtisanHeritageStory").then(story => {
+        if (!story) return;
+        if (document.getElementById("adminArtisanTitle")) document.getElementById("adminArtisanTitle").value = story.title || "";
+        if (document.getElementById("adminArtisanBadge")) document.getElementById("adminArtisanBadge").value = story.heroBadge || "";
+        if (document.getElementById("adminArtisanSubtitle")) document.getElementById("adminArtisanSubtitle").value = story.subtitle || "";
+        if (document.getElementById("adminArtisanIntro")) document.getElementById("adminArtisanIntro").value = story.introStory || "";
+
+        window.adminArtisanProfiles = Array.isArray(story.artisanProfiles) ? [...story.artisanProfiles] : [];
+        window.adminGratitudeNotes = Array.isArray(story.gratitudeNotes) ? [...story.gratitudeNotes] : [];
+
+        window.renderAdminArtisanProfilesList();
+        window.renderAdminGratitudeNotesList();
+    }).catch(err => {
+        console.error("Error loading artisan story for admin:", err);
+    });
+};
+
+window.sampleArtisanAvatars = [
+    "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80",
+    "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=300&q=80",
+    "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=300&q=80",
+    "https://images.unsplash.com/photo-1567532939604-b6b5b0db2604?auto=format&fit=crop&w=300&q=80",
+    "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80"
+];
+
+window.renderAdminArtisanProfilesList = function() {
+    const listEl = document.getElementById("adminArtisanProfilesList");
+    if (!listEl) return;
+
+    if (window.adminArtisanProfiles.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center; padding:16px; font-size:12px; color:#94a3b8;">No artisan profiles added. Click 'Add New Artisan Mother' above to add one!</div>`;
+        return;
+    }
+
+    listEl.innerHTML = window.adminArtisanProfiles.map((p, idx) => `
+        <div style="background:white; border:1px solid #e2e8f0; border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:6px;">
+                <span style="font-size:12px; font-weight:800; color:#0f172a;">👵 Artisan Profile #${idx + 1}</span>
+                <button type="button" onclick="deleteAdminArtisanProfileCard(${idx})" style="background:#fee2e2; color:#991b1b; border:none; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer;">
+                    🗑️ Delete Profile
+                </button>
+            </div>
+
+            <div style="display:flex; gap:12px; align-items:flex-start;">
+                <!-- Profile Image Preview & Quick Presets -->
+                <div style="display:flex; flex-direction:column; align-items:center; gap:6px; width:80px; flex-shrink:0;">
+                    <img src="${p.image || window.sampleArtisanAvatars[0]}" alt="Artisan Photo" style="width:64px; height:64px; border-radius:50%; object-fit:cover; border:2px solid #be123c;">
+                    <span style="font-size:9px; font-weight:700; color:#64748b; text-align:center;">Photo Preview</span>
+                </div>
+
+                <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                        <div>
+                           <label style="font-size:10px; font-weight:700; color:#475569;">Name & Honorific</label>
+                           <input type="text" value="${p.name || ''}" onchange="updateAdminArtisanField(${idx}, 'name', this.value)" placeholder="e.g. Savitri Devi (Ammaji)" style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-weight:700;">
+                        </div>
+                        <div>
+                           <label style="font-size:10px; font-weight:700; color:#475569;">Experience & Location</label>
+                           <input type="text" value="${p.experience || ''}" onchange="updateAdminArtisanField(${idx}, 'experience', this.value)" placeholder="e.g. 42 Years • Varanasi Kitchen" style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px;">
+                        </div>
+                    </div>
+
+                    <div>
+                       <label style="font-size:10px; font-weight:700; color:#475569;">Role / Specialty</label>
+                       <input type="text" value="${p.role || ''}" onchange="updateAdminArtisanField(${idx}, 'role', this.value)" placeholder="e.g. Master Spice & Fermentation Specialist" style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-weight:600;">
+                    </div>
+
+                    <div>
+                       <label style="font-size:10px; font-weight:700; color:#475569;">Photo URL (Custom Image link or select preset below)</label>
+                       <input type="text" value="${p.image || ''}" onchange="updateAdminArtisanField(${idx}, 'image', this.value)" placeholder="https://..." style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:10px; font-family:monospace; margin-bottom:4px;">
+                       
+                       <!-- Quick Presets -->
+                       <div style="display:flex; align-items:center; gap:4px; flex-wrap:wrap;">
+                          <span style="font-size:9px; font-weight:700; color:#94a3b8;">Quick Avatars:</span>
+                          ${window.sampleArtisanAvatars.map((url, i) => `
+                             <button type="button" onclick="updateAdminArtisanField(${idx}, 'image', '${url}')" style="background:#f1f5f9; border:1px solid #cbd5e1; padding:2px 6px; border-radius:4px; font-size:9px; font-weight:700; cursor:pointer;">Avatar ${i+1}</button>
+                          `).join('')}
+                       </div>
+                    </div>
+
+                    <div>
+                       <label style="font-size:10px; font-weight:700; color:#475569;">Artisan Wisdom Quote</label>
+                       <textarea onchange="updateAdminArtisanField(${idx}, 'quote', this.value)" rows="2" placeholder="Write quote..." style="width:100%; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; font-style:italic; resize:none;">${p.quote || ''}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join("");
+};
+
+window.updateAdminArtisanField = function(idx, field, val) {
+    if (window.adminArtisanProfiles[idx]) {
+        window.adminArtisanProfiles[idx][field] = val;
+        if (field === 'image') window.renderAdminArtisanProfilesList();
+    }
+};
+
+window.addAdminArtisanProfileCard = function() {
+    window.adminArtisanProfiles.push({
+        id: "ART_" + Date.now(),
+        name: "New Artisan Mother",
+        role: "Master Spice & Solar Fermentation Specialist",
+        experience: "25 Years Experience • Village Kitchen",
+        quote: "Every jar is prepared with maternal love and direct sunlight.",
+        image: window.sampleArtisanAvatars[Math.floor(Math.random() * window.sampleArtisanAvatars.length)]
+    });
+    window.renderAdminArtisanProfilesList();
+};
+
+window.deleteAdminArtisanProfileCard = function(idx) {
+    window.adminArtisanProfiles.splice(idx, 1);
+    window.renderAdminArtisanProfilesList();
+};
+
+// CUSTOMER REVIEWS MANAGER
+window.renderAdminGratitudeNotesList = function() {
+    const listEl = document.getElementById("adminGratitudeNotesList");
+    if (!listEl) return;
+
+    if (window.adminGratitudeNotes.length === 0) {
+        listEl.innerHTML = `<div style="text-align:center; padding:12px; font-size:11px; color:#15803d; background:white; border-radius:8px;">No customer reviews present. You can add featured reviews using the form below!</div>`;
+        return;
+    }
+
+    listEl.innerHTML = window.adminGratitudeNotes.map((n, idx) => `
+        <div style="background:white; border:1px solid #bbf7d0; border-radius:8px; padding:10px; display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+            <div style="flex:1;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:12px; font-weight:800; color:#166534;">${n.customerName || 'Customer'} <small style="color:#64748b;">(${n.location || 'India'})</small></span>
+                    <span style="font-size:10px; color:#94a3b8;">${n.date || 'Recent'}</span>
+                </div>
+                <p style="margin:0; font-size:11px; color:#334155; line-height:1.4; font-style:italic;">"${n.message}"</p>
+            </div>
+            <button type="button" onclick="deleteAdminCustomerReview(${idx})" style="background:#fee2e2; color:#991b1b; border:none; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer; flex-shrink:0;">
+                🗑️ Delete Review
+            </button>
+        </div>
+    `).join("");
+};
+
+window.addAdminCustomerReview = function() {
+    const nameEl = document.getElementById("adminNewReviewName");
+    const locEl = document.getElementById("adminNewReviewLocation");
+    const msgEl = document.getElementById("adminNewReviewMessage");
+
+    if (!nameEl || !msgEl || !msgEl.value.trim()) {
+        alert("Please enter customer name and review message.");
+        return;
+    }
+
+    const newNote = {
+        id: "NOTE_" + Date.now(),
+        customerName: nameEl.value.trim(),
+        location: locEl ? locEl.value.trim() : "India",
+        message: msgEl.value.trim(),
+        date: new Date().toISOString().split("T")[0]
+    };
+
+    window.adminGratitudeNotes.unshift(newNote);
+    nameEl.value = "";
+    if (locEl) locEl.value = "";
+    msgEl.value = "";
+
+    window.renderAdminGratitudeNotesList();
+};
+
+window.deleteAdminCustomerReview = function(idx) {
+    window.adminGratitudeNotes.splice(idx, 1);
+    window.renderAdminGratitudeNotesList();
+};
+
+window.saveAdminArtisanStoryAndReviews = function() {
+    const payload = {
+        title: document.getElementById("adminArtisanTitle")?.value.trim() || "Handcrafted with Love by Village Artisans",
+        heroBadge: document.getElementById("adminArtisanBadge")?.value.trim() || "Ghar Ki Rasoi Heritage",
+        subtitle: document.getElementById("adminArtisanSubtitle")?.value.trim() || "Meet the Rural Mothers & Master Craftswomen Behind AaharShree's Authentic Taste",
+        introStory: document.getElementById("adminArtisanIntro")?.value.trim() || "Every jar of AaharShree is lovingly handcrafted in small batch kitchens...",
+        artisanProfiles: window.adminArtisanProfiles,
+        gratitudeNotes: window.adminGratitudeNotes
+    };
+
+    server("saveArtisanHeritageStory", payload).then(res => {
+        if (res && res.success) {
+            alert("✅ Master Admin Success! Artisan Craftswomen profiles, photos, and customer reviews saved & updated live!");
+            if (typeof window.loadAndRenderArtisanStory === 'function') window.loadAndRenderArtisanStory();
+        } else {
+            alert("Error saving artisan story: " + (res?.error || "Unknown failure"));
+        }
+    }).catch(err => {
+        console.error("Save artisan story error:", err);
+        alert("Failed to save artisan story data.");
+    });
+};
+</script>

@@ -1,0 +1,1223 @@
+<script>
+// Global Client-Side Error Catchers for Diagnostic Feedback
+window.onerror = function(message, source, lineno, colno, error) {
+    const errorMsg = `🚨 Unhandled JS Error:\n${message}\nSource: ${source ? source.substring(source.lastIndexOf('/') + 1) : 'unknown'}\nLine: ${lineno}:${colno}`;
+    console.error(errorMsg, error);
+    alert(errorMsg);
+    return false;
+};
+
+window.onunhandledrejection = function(event) {
+    const errorMsg = `🚨 Unhandled Promise Rejection:\n${event.reason}`;
+    console.error(errorMsg);
+    alert(errorMsg);
+};
+
+// ======================================================
+// GLOBAL APP STATE CONTAINER & SECURITY UTILITIES
+// ======================================================
+window.escapeHtml = function(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
+const App = {
+    user: null,
+    returnToCheckout: false
+};
+
+/**
+ * Universal Wrapper for google.script.run
+ */
+function server(functionName, ...args) {
+    return new Promise((resolve, reject) => {
+        if (typeof google === 'undefined' || !google.script || !google.script.run) {
+            console.warn(`[DEV MOCK MODE] Calling ${functionName} with:`, args);
+            const mockHandler = (window.handleMockServerCall || (window.parent && window.parent.handleMockServerCall));
+            if (typeof mockHandler === 'function') {
+                return mockHandler(functionName, args).then(resolve).catch(reject);
+            }
+            return resolve(null);
+        }
+
+        const runner = google.script.run
+            .withSuccessHandler(res => resolve(res))
+            .withFailureHandler(err => {
+                console.error(`[GAS SERVER ERROR] in ${functionName}:`, err);
+                reject(err);
+            });
+
+        if (typeof runner[functionName] === 'function') {
+            runner[functionName](...args);
+        } else {
+            const errMsg = `Server-side function "${functionName}" is not defined or deployed.`;
+            console.error(errMsg);
+            reject(new Error(errMsg));
+        }
+    });
+}
+
+/**
+ * Universal Data Initializer Per Screen
+ */
+function triggerScreenInitializer(screenId) {
+    try {
+        switch (screenId) {
+            case 'homeScreen':
+                if (typeof loadHome === 'function') loadHome();
+                break;
+            case 'cartScreen':
+                if (typeof loadCart === 'function') loadCart();
+                else if (typeof showCart === 'function') showCart();
+                break;
+            case 'myOrdersScreen':
+                if (typeof loadMyOrders === 'function') loadMyOrders();
+                break;
+            case 'profileScreen':
+                if (typeof loadProfile === 'function') loadProfile();
+                break;
+            case 'dashboardScreen':
+                if (typeof loadDashboard === 'function') loadDashboard();
+                break;
+            case 'ordersScreen':
+                if (typeof loadAdminOrders === 'function') loadAdminOrders();
+                break;
+            case 'productsAdminScreen':
+                if (typeof loadAdminProducts === 'function') loadAdminProducts();
+                break;
+            case 'inventoryScreen':
+                if (typeof loadInventory === 'function') loadInventory();
+                break;
+            case 'customersScreen':
+                if (typeof loadCustomers === 'function') loadCustomers();
+                break;
+            case 'settingsScreen':
+                if (typeof loadSettings === 'function') loadSettings();
+                break;
+            case 'couponsScreen':
+                if (typeof loadCouponsAdmin === 'function') loadCouponsAdmin();
+                break;
+            case 'slidersAdminScreen':
+                if (typeof loadAdminSliders === 'function') loadAdminSliders();
+                break;
+            case 'specialOrdersAdminScreen':
+                if (typeof loadSpecialAdminData === 'function') loadSpecialAdminData();
+                break;
+            case 'categoriesScreen':
+                if (typeof loadAdminCategories === 'function') loadAdminCategories();
+                break;
+            case 'analyticsScreen':
+                if (typeof loadAnalytics === 'function') loadAnalytics();
+                break;
+            case 'adminProfileScreen':
+                if (typeof loadAdminStaffDirectory === 'function') loadAdminStaffDirectory();
+                break;
+        }
+    } catch(e) {
+        console.warn("Screen trigger error for " + screenId + ":", e);
+    }
+}
+
+/**
+ * Global Screen Navigation System with Mobile Back Button & Refresh Persistence Support
+ */
+function showScreen(screenId, pushHistory = true) {
+    if (!screenId) return;
+
+    const fallbackOrder = [screenId, 'loginScreen', 'homeScreen', 'splashScreen'];
+    let target = null;
+    let resolvedScreenId = screenId;
+
+    for (const candidate of fallbackOrder) {
+        const element = document.getElementById(candidate);
+        if (element) {
+            target = element;
+            resolvedScreenId = candidate;
+            break;
+        }
+    }
+
+    if (!target) {
+        console.error("Screen ID not found and no fallback screen is available:", screenId);
+        return;
+    }
+
+    try {
+        document.querySelectorAll('.screen').forEach(s => {
+            s.classList.remove('active');
+            s.style.display = 'none';
+        });
+
+        if (resolvedScreenId !== 'splashScreen') {
+            const splashEl = document.getElementById('splashScreen');
+            if (splashEl) {
+                splashEl.style.opacity = "0";
+                splashEl.style.pointerEvents = "none";
+                try { splashEl.remove(); } catch(e) {
+                    if (splashEl.parentNode) splashEl.parentNode.removeChild(splashEl);
+                }
+            }
+        }
+    } catch (e) {}
+
+    try {
+        target.classList.add('active');
+        target.style.display = (resolvedScreenId === 'splashScreen') ? 'flex' : 'block';
+    } catch (e) {}
+
+    window.scrollTo(0, 0);
+
+    // Save to localStorage so screen remains active on page refresh
+    try {
+        localStorage.setItem("aaharshree_last_screen", screenId);
+    } catch(e) {}
+
+    // Push to browser history for Mobile Hardware Back Button support
+    if (pushHistory) {
+        try {
+            const hash = '#' + screenId;
+            if (window.location.hash !== hash) {
+                history.pushState({ screenId: screenId }, '', hash);
+            }
+        } catch(e) {}
+    }
+
+    // Synchronize bottom nav active state across screens
+    updateBottomNavUI(resolvedScreenId);
+
+    // Automatically trigger data refresh / initializer for opened screen
+    triggerScreenInitializer(screenId);
+}
+
+// Helper for Bottom Nav
+function updateBottomNavUI(screenId) {
+    document.querySelectorAll('.bottom-nav .nav-item').forEach(item => {
+        item.classList.remove('active');
+        const attr = item.getAttribute('onclick') || '';
+        if (screenId === 'homeScreen' && (attr.includes('homeScreen') || attr.includes('loadHome'))) {
+            item.classList.add('active');
+        } else if (screenId === 'cartScreen' && attr.includes('showCart')) {
+            item.classList.add('active');
+        } else if (screenId === 'profileScreen' && attr.includes('openProfile')) {
+            item.classList.add('active');
+        }
+    });
+}
+
+// Mobile Hardware Back Button and Browser Navigation Handlers
+window.addEventListener('popstate', (event) => {
+    let targetScreen = null;
+    if (event.state && event.state.screenId) {
+        targetScreen = event.state.screenId;
+    } else if (window.location.hash) {
+        targetScreen = window.location.hash.replace('#', '');
+    }
+
+    if (targetScreen && document.getElementById(targetScreen)) {
+        showScreen(targetScreen, false);
+    } else {
+        const user = App.user || (localStorage.getItem("aaharshree_user") ? JSON.parse(localStorage.getItem("aaharshree_user")) : null);
+        const isAdmin = !!(user && (user.role === 'ADMIN' || localStorage.getItem("admin")));
+        showScreen(isAdmin ? "dashboardScreen" : "homeScreen", false);
+    }
+});
+
+window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash && document.getElementById(hash)) {
+        const currentActive = document.querySelector('.screen.active');
+        if (!currentActive || currentActive.id !== hash) {
+            showScreen(hash, false);
+        }
+    }
+});
+
+/**
+ * Loading Spinner Handlers
+ */
+function showLoading(msg = "Loading AaharShree...") {
+    const loader = document.getElementById("globalLoader");
+    const text = document.getElementById("loaderText");
+    if (text) text.innerText = msg;
+    if (loader) loader.style.display = "flex";
+}
+
+function hideLoading() {
+    const loader = document.getElementById("globalLoader");
+    if (loader) loader.style.display = "none";
+}
+
+/**
+ * User Logout Utility
+ */
+function logout() {
+    App.user = null;
+    localStorage.removeItem("aaharshree_user");
+    localStorage.removeItem("customer");
+    localStorage.removeItem("admin");
+    
+    if (typeof updateCartBadge === 'function') updateCartBadge();
+
+    showScreen("loginScreen");
+    if (typeof showLoginAlert === 'function') {
+        showLoginAlert("Signed out successfully.", true);
+    }
+}
+
+// Check saved user session & sync maintenance mode on app start
+document.addEventListener("DOMContentLoaded", () => {
+    App.user = null;
+    try {
+        localStorage.removeItem("aaharshree_user");
+        localStorage.removeItem("customer");
+        localStorage.removeItem("admin");
+    } catch(e) {}
+
+    if (typeof updateCartBadge === 'function') updateCartBadge();
+
+    server("getMaintenanceStatus").then(res => {
+        if (res && (res.maintenance !== undefined || res.maintenanceMode !== undefined)) {
+            const isMaint = !!(res.maintenance || res.maintenanceMode);
+            localStorage.setItem("app_maintenance_mode", String(isMaint));
+            if (typeof checkCustomerMaintenanceBanner === 'function') checkCustomerMaintenanceBanner();
+            if (typeof renderMasterShutdownCard === 'function') renderMasterShutdownCard();
+            if (typeof renderSettingsMasterShutdown === 'function') renderSettingsMasterShutdown();
+        }
+    }).catch(e => {});
+});
+
+/**
+ * Universal PDF Invoice & Parcel Bill Generator
+ * @param {Object|String} orderData - Order object or encoded JSON string
+ * @param {Boolean} isParcelMode - Whether to highlight parcel shipping packing slip view
+ */
+window.generateOrderInvoicePDF = function(orderData, isParcelMode = false) {
+    let order = orderData;
+    if (typeof orderData === 'string') {
+        try {
+            order = JSON.parse(decodeURIComponent(orderData));
+        } catch(e) {
+            try { order = JSON.parse(orderData); } catch(err) { console.error("Invalid order data", err); }
+        }
+    }
+    if (!order) {
+        alert("Unable to generate invoice. Order data is missing.");
+        return;
+    }
+
+    if (typeof showLoading === 'function') showLoading("Preparing Tax Invoice & Parcel Bill...");
+
+    server("getAllSettings").then(s => {
+        if (typeof hideLoading === 'function') hideLoading();
+        s = s || {};
+
+        const storeName = s.INVOICE_STORE_NAME || "AaharShree Natural Kitchens";
+        const tagline = s.INVOICE_TAGLINE || "100% Homemade, Sun-Dried Organic Pickles & Preserves";
+        const fssai = s.INVOICE_FSSAI || "11521021000456";
+        const gstin = s.INVOICE_GSTIN || "27AAAAA0000A1Z5";
+        const address = s.INVOICE_ADDRESS || "Plot No. 42, Green Agro Food Park, Kothrud, Pune, Maharashtra - 411038";
+        const phone = s.INVOICE_PHONE || "+91 98765 43210";
+        const email = s.INVOICE_EMAIL || "billing@aaharshreenaturals.com";
+        const terms = s.INVOICE_TERMS || "Store in a cool dry place. Always use a clean & dry spoon. 100% Natural & Sun-aged.";
+        const parcelNote = s.INVOICE_PARCEL_NOTE || "Packed with Care & Freshly Sealed. Tax Invoice included for parcel dispatch.";
+
+        const orderId = order.orderId || order.id || ("ORD" + Date.now().toString().slice(-6));
+        const invoiceNo = "INV-" + String(orderId).toUpperCase();
+        const createdOn = order.createdOn || order.createdAt || new Date().toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' });
+        const customerName = order.customerName || order.name || order.customer || "Valued Customer";
+        const customerMobile = order.mobile || order.customerMobile || order.phone || "N/A";
+        const customerAddress = order.address || order.fullAddress || "Address Provided At Order Placement";
+        const paymentMode = order.paymentMode || order.paymentMethod || "COD";
+        const paymentStatus = (paymentMode === 'UPI' || order.paid) ? "PAID (UPI Instant)" : "COD (Collect on Delivery)";
+
+        let items = order.items || [];
+        if (!Array.isArray(items) || items.length === 0) {
+            if (order.requirement) {
+                items = [{ name: order.requirement, weight: 'Custom Parcel Batch', qty: 1, price: order.total || order.grandTotal || 0 }];
+            } else {
+                items = [{ name: "Traditional Pickle Jars Assortment", weight: "500g Jar", qty: 1, price: order.total || order.grandTotal || 0 }];
+            }
+        }
+
+        let itemsTableRows = "";
+        let calculatedSubtotal = 0;
+        items.forEach((item, index) => {
+            const name = item.name || item.productName || "Pickle Jar";
+            const weight = item.weight ? ` (${item.weight})` : "";
+            const qty = Number(item.qty || item.quantity || 1);
+            const price = Number(item.price || item.unitPrice || 0);
+            const itemTotal = price * qty;
+            calculatedSubtotal += itemTotal;
+
+            itemsTableRows += `
+            <tr style="border-bottom:1px solid #e2e8f0;">
+               <td style="padding:10px 12px; text-align:center; font-weight:600; color:#64748b;">${index + 1}</td>
+               <td style="padding:10px 12px; font-weight:700; color:#1e293b;">${name}<span style="color:#64748b; font-weight:500;">${weight}</span></td>
+               <td style="padding:10px 12px; text-align:right; font-weight:600; color:#334155;">₹${price.toFixed(2)}</td>
+               <td style="padding:10px 12px; text-align:center; font-weight:700; color:#0f172a;">${qty}</td>
+               <td style="padding:10px 12px; text-align:right; font-weight:800; color:#0b6e38;">₹${itemTotal.toFixed(2)}</td>
+            </tr>`;
+        });
+
+        const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(order.subtotal || order.grandTotal || order.total || 0);
+        const couponDiscount = Number(order.couponDiscount || order.discount || 0);
+        const upiDiscount = Number(order.upiDiscount || 0);
+        const deliveryCharge = Number(order.deliveryCharge !== undefined ? order.deliveryCharge : (subtotal >= (s.FREE_DELIVERY_LIMIT || 500) ? 0 : (s.DELIVERY_CHARGE || 50)));
+        const taxRate = Number(s.TAX_PERCENTAGE || 0);
+        const taxAmount = taxRate > 0 ? (subtotal * taxRate / 100) : 0;
+        const grandTotal = Number(order.grandTotal || order.totalAmount || order.total || (subtotal - couponDiscount - upiDiscount + deliveryCharge + taxAmount));
+
+        // Construct HTML Document for Printing & PDF Export
+        const invoiceHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>${isParcelMode ? 'Parcel Bill' : 'Tax Invoice'} - ${invoiceNo}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+            body { background: #f8fafc; color: #1e293b; padding: 20px; font-size: 13px; line-height: 1.5; }
+            .invoice-card { max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); padding: 32px; }
+            .header-bar { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0b6e38; padding-bottom: 20px; margin-bottom: 24px; }
+            .brand-title { font-size: 22px; font-weight: 900; color: #0b6e38; letter-spacing: -0.5px; }
+            .brand-tagline { font-size: 11px; font-weight: 600; color: #64748b; margin-top: 2px; }
+            .reg-badges { display: flex; gap: 8px; margin-top: 8px; }
+            .badge { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 3px 8px; border-radius: 6px; font-size: 10px; font-weight: 800; display: inline-block; }
+            .invoice-meta { text-align: right; }
+            .inv-type-pill { background: #0b6e38; color: #ffffff; padding: 4px 12px; border-radius: 20px; font-weight: 800; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; display: inline-block; margin-bottom: 8px; }
+            .meta-item { font-size: 12px; color: #475569; margin-bottom: 3px; }
+            .meta-item strong { color: #0f172a; font-weight: 800; }
+            .address-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 12px; padding: 16px; margin-bottom: 24px; }
+            .box-title { font-size: 11px; font-weight: 800; color: #0b6e38; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 4px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0; }
+            .items-table th { background: #f1f5f9; color: #475569; font-weight: 800; font-size: 11px; text-transform: uppercase; padding: 10px 12px; border-bottom: 2px solid #e2e8f0; }
+            .summary-area { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; gap: 20px; }
+            .terms-box { flex: 1; background: #fffbe0; border: 1px solid #fef08a; padding: 14px; border-radius: 10px; font-size: 11px; color: #854d0e; line-height: 1.5; }
+            .totals-box { width: 280px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 10px; padding: 14px; }
+            .total-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; color: #475569; }
+            .total-row.grand { font-weight: 900; font-size: 16px; color: #0b6e38; border-top: 1.5px solid #cbd5e1; padding-top: 8px; margin-top: 6px; }
+            .stamp-box { text-align: center; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 16px; display: flex; justify-content: space-between; align-items: flex-end; }
+            .print-actions { max-width: 800px; margin: 0 auto 20px auto; display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 14px 20px; border-radius: 14px; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+            .btn-primary { background: #0b6e38; color: #ffffff; border: none; padding: 10px 20px; border-radius: 10px; font-weight: 800; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+            .btn-secondary { background: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 10px 16px; border-radius: 10px; font-weight: 800; font-size: 12px; cursor: pointer; }
+            @media print {
+              body { background: #ffffff; padding: 0; }
+              .invoice-card { border: none; box-shadow: none; padding: 0; }
+              .print-actions { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          
+          <div class="print-actions">
+             <div style="font-weight:800; color:#0f172a; font-size:14px; display:flex; align-items:center; gap:8px;">
+                <span>📄 Tax Invoice & Parcel Bill Preview</span>
+             </div>
+             <div style="display:flex; gap:10px;">
+                <button onclick="window.print()" class="btn-primary">🖨️ Print / Save as PDF</button>
+                <button onclick="window.close()" class="btn-secondary">✕ Close Preview</button>
+             </div>
+          </div>
+
+          <div class="invoice-card">
+             
+             <!-- Header -->
+             <div class="header-bar">
+                <div>
+                   <div class="brand-title">🏺 ${storeName}</div>
+                   <div class="brand-tagline">${tagline}</div>
+                   <div class="reg-badges">
+                      <span class="badge">FSSAI Lic No: ${fssai}</span>
+                      <span class="badge">GSTIN: ${gstin}</span>
+                   </div>
+                </div>
+                <div class="invoice-meta">
+                   <div class="inv-type-pill">${isParcelMode ? 'PARCEL DISPATCH BILL' : 'OFFICIAL TAX INVOICE'}</div>
+                   <div class="meta-item">Invoice No: <strong>${invoiceNo}</strong></div>
+                   <div class="meta-item">Order Date: <strong>${createdOn}</strong></div>
+                   <div class="meta-item">Payment Mode: <strong>${paymentMode} (${paymentStatus})</strong></div>
+                </div>
+             </div>
+
+             <!-- Address & Parcel Details -->
+             <div class="address-grid">
+                <div>
+                   <div class="box-title">🏢 ISSUED BY (SELLER & KITCHEN)</div>
+                   <div style="font-weight:800; color:#0f172a; font-size:13px; margin-bottom:2px;">${storeName}</div>
+                   <div style="font-size:11px; color:#475569;">${address}</div>
+                   <div style="font-size:11px; color:#475569; margin-top:4px;">📞 ${phone} | ✉️ ${email}</div>
+                </div>
+                <div>
+                   <div class="box-title">📍 RECIPIENT & SHIP TO (PARCEL DESTINATION)</div>
+                   <div style="font-weight:800; color:#0f172a; font-size:14px; margin-bottom:2px;">👤 ${customerName}</div>
+                   <div style="font-size:11px; color:#475569; margin-bottom:4px;">📞 Mobile: <strong>${customerMobile}</strong></div>
+                   <div style="font-size:11px; color:#334155; font-weight:600; background:#ffffff; border:1px solid #cbd5e1; padding:6px 10px; border-radius:6px;">📍 ${customerAddress}</div>
+                </div>
+             </div>
+
+             ${isParcelMode ? `
+             <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px; margin-bottom:20px; font-size:11px; color:#166534; font-weight:700; display:flex; align-items:center; gap:8px;">
+                <span style="font-size:16px;">📦</span>
+                <div>
+                   <div>PARCEL PACKING SLIP INSTRUCTION:</div>
+                   <small style="font-weight:500;">${parcelNote}</small>
+                </div>
+             </div>` : ''}
+
+             <!-- Items Table -->
+             <table class="items-table">
+                <thead>
+                   <tr>
+                      <th style="width:40px; text-align:center;">#</th>
+                      <th style="text-align:left;">Item & Packaging Details</th>
+                      <th style="text-align:right; width:100px;">Price (₹)</th>
+                      <th style="text-align:center; width:60px;">Qty</th>
+                      <th style="text-align:right; width:110px;">Total (₹)</th>
+                   </tr>
+                </thead>
+                <tbody>
+                   ${itemsTableRows}
+                </tbody>
+             </table>
+
+             <!-- Summary & Terms -->
+             <div class="summary-area">
+                <div class="terms-box">
+                   <div style="font-weight:800; font-size:12px; margin-bottom:4px;">📜 Store Terms & Storage Instructions:</div>
+                   <div>• ${terms}</div>
+                   <div style="margin-top:6px; font-size:10px; opacity:0.85;">• Computer generated invoice. Standard tax regulations applicable under FSSAI Food Safety standards.</div>
+                </div>
+
+                <div class="totals-box">
+                   <div class="total-row">
+                      <span>Item Subtotal:</span>
+                      <span style="font-weight:700;">₹${subtotal.toFixed(2)}</span>
+                   </div>
+                   ${couponDiscount > 0 ? `
+                   <div class="total-row" style="color:#16a34a;">
+                      <span>Coupon Discount:</span>
+                      <span style="font-weight:700;">-₹${couponDiscount.toFixed(2)}</span>
+                   </div>` : ''}
+                   ${upiDiscount > 0 ? `
+                   <div class="total-row" style="color:#16a34a;">
+                      <span>UPI Instant Discount:</span>
+                      <span style="font-weight:700;">-₹${upiDiscount.toFixed(2)}</span>
+                   </div>` : ''}
+                   <div class="total-row">
+                      <span>Delivery Shipping Charge:</span>
+                      <span style="font-weight:700;">${deliveryCharge === 0 ? '<span style="color:#16a34a;">FREE</span>' : '₹' + deliveryCharge.toFixed(2)}</span>
+                   </div>
+                   ${taxAmount > 0 ? `
+                   <div class="total-row">
+                      <span>GST (${taxRate}%):</span>
+                      <span style="font-weight:700;">₹${taxAmount.toFixed(2)}</span>
+                   </div>` : ''}
+                   <div class="total-row grand">
+                      <span>Grand Total:</span>
+                      <span>₹${grandTotal.toFixed(2)}</span>
+                   </div>
+                </div>
+             </div>
+
+             <!-- Stamp Signature -->
+             <div class="stamp-box">
+                <div style="font-size:10px; color:#64748b; text-align:left;">
+                   <div>Thank you for choosing AaharShree Natural Kitchens!</div>
+                   <div>Visit us again at: www.aaharshreenaturals.com</div>
+                </div>
+                <div style="text-align:center;">
+                   <div style="font-size:11px; font-weight:800; color:#0f172a; margin-bottom:25px;">For ${storeName}</div>
+                   <div style="border-top:1px dashed #cbd5e1; width:160px; font-size:10px; color:#64748b; padding-top:4px;">Authorized Signatory Stamp</div>
+                </div>
+             </div>
+
+          </div>
+        </body>
+        </html>`;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=800,scrollbars=yes');
+        if (printWindow) {
+            printWindow.document.write(invoiceHtml);
+            printWindow.document.close();
+            printWindow.focus();
+        } else {
+            const overlay = document.createElement('div');
+            overlay.id = "invoiceModalOverlay";
+            overlay.style.cssText = "position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.8); z-index:99999; display:flex; flex-direction:column; overflow:auto; padding:20px;";
+            overlay.innerHTML = `
+              <div style="max-width:850px; width:100%; margin:0 auto; background:white; border-radius:16px; padding:20px; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+                 <div style="display:flex; justify-content:space-between; margin-bottom:15px;">
+                    <button onclick="window.print()" style="background:#0b6e38; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:800; cursor:pointer;">🖨️ Print / Save as PDF</button>
+                    <button onclick="document.getElementById('invoiceModalOverlay').remove()" style="background:#ef4444; color:white; border:none; padding:10px 20px; border-radius:8px; font-weight:800; cursor:pointer;">Close ✕</button>
+                 </div>
+                 <iframe id="invPrintIframe" style="width:100%; height:80vh; border:none;"></iframe>
+              </div>`;
+            document.body.appendChild(overlay);
+            const iframe = document.getElementById('invPrintIframe');
+            iframe.contentWindow.document.open();
+            iframe.contentWindow.document.write(invoiceHtml);
+            iframe.contentWindow.document.close();
+        }
+
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Invoice PDF Generation Error:", err);
+        alert("Failed to fetch store configurations for invoice: " + (err.message || err));
+    });
+};
+
+/**
+ * Universal WhatsApp Tax Invoice Share Generator
+ */
+window.sendWhatsAppInvoiceReceipt = function(orderData) {
+    let order = orderData;
+    if (typeof orderData === 'string') {
+        try { order = JSON.parse(decodeURIComponent(orderData)); } catch(e) { try { order = JSON.parse(orderData); } catch(err){} }
+    }
+    if (!order) return alert("Order data unavailable for WhatsApp share.");
+
+    server("getAllSettings").then(s => {
+        s = s || {};
+        const storeName = s.INVOICE_STORE_NAME || "AaharShree Natural Kitchens";
+        const fssai = s.INVOICE_FSSAI || "11521021000456";
+        const phone = s.INVOICE_PHONE || "+91 98765 43210";
+        
+        const orderId = order.orderId || order.id || "ORD" + Date.now().toString().slice(-6);
+        const customerName = order.customerName || order.name || "Customer";
+        const total = order.grandTotal || order.totalAmount || order.total || 0;
+        const paymentMode = order.paymentMode || "COD";
+        const items = order.items || [];
+
+        let itemsSummary = "";
+        if (Array.isArray(items) && items.length > 0) {
+            itemsSummary = items.map(i => `• ${i.name || i.productName} (${i.weight || '500g'}) x ${i.qty || i.quantity || 1} - ₹${(i.price || 0) * (i.qty || 1)}`).join("\n");
+        } else if (order.requirement) {
+            itemsSummary = `• ${order.requirement} x 1`;
+        } else {
+            itemsSummary = "• Homemade Pickle Assortment Jar x 1";
+        }
+
+        const msg = `🧾 *OFFICIAL TAX INVOICE & ORDER RECEIPT*\n` +
+                    `*${storeName}*\n` +
+                    `FSSAI Lic: ${fssai}\n` +
+                    `----------------------------------------\n` +
+                    `🆔 *Order ID:* #${orderId}\n` +
+                    `👤 *Customer:* ${customerName}\n` +
+                    `💳 *Payment:* ${paymentMode}\n` +
+                    `💰 *Grand Total:* ₹${total}\n\n` +
+                    `📦 *Ordered Items:*\n${itemsSummary}\n\n` +
+                    `📍 *Delivery Address:* ${order.address || 'On File'}\n` +
+                    `----------------------------------------\n` +
+                    `🌿 100% Homemade, Sun-Dried & Natural\n` +
+                    `📞 Contact Kitchen: ${phone}\n` +
+                    `Thank you for shopping with us!`;
+
+        let targetNum = String(order.mobile || order.phone || s.SUPPORT_WHATSAPP || "").replace(/\D/g, "");
+        if (targetNum && !targetNum.startsWith("91") && targetNum.length === 10) {
+            targetNum = "91" + targetNum;
+        }
+        
+        const waUrl = targetNum ? `https://wa.me/${targetNum}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+        window.open(waUrl, '_blank');
+    });
+};
+
+/**
+ * Universal Batch Parcel Bills PDF Generator (Admin Multi-Order Dispatch)
+ */
+window.generateBatchOrderInvoicePDF = function(ordersArray, isParcelMode = true) {
+    if (!Array.isArray(ordersArray) || ordersArray.length === 0) {
+        alert("Please select at least one order to generate batch shipping parcel bills.");
+        return;
+    }
+
+    if (typeof showLoading === 'function') showLoading(`Consolidating ${ordersArray.length} Parcel Shipping Bills...`);
+
+    server("getAllSettings").then(s => {
+        if (typeof hideLoading === 'function') hideLoading();
+        s = s || {};
+
+        const storeName = s.INVOICE_STORE_NAME || "AaharShree Natural Kitchens";
+        const tagline = s.INVOICE_TAGLINE || "100% Homemade, Sun-Dried Organic Pickles & Preserves";
+        const fssai = s.INVOICE_FSSAI || "11521021000456";
+        const gstin = s.INVOICE_GSTIN || "27AAAAA0000A1Z5";
+        const address = s.INVOICE_ADDRESS || "Plot No. 42, Green Agro Food Park, Kothrud, Pune, Maharashtra - 411038";
+        const phone = s.INVOICE_PHONE || "+91 98765 43210";
+        const email = s.INVOICE_EMAIL || "billing@aaharshreenaturals.com";
+        const terms = s.INVOICE_TERMS || "Store in a cool dry place. Always use a clean & dry spoon. 100% Natural & Sun-aged.";
+        const parcelNote = s.INVOICE_PARCEL_NOTE || "Packed with Care & Freshly Sealed. Tax Invoice included for parcel dispatch.";
+
+        let combinedInvoicesHtml = "";
+
+        ordersArray.forEach((order, orderIdx) => {
+            const orderId = order.orderId || order.id || ("ORD" + (Date.now() + orderIdx).toString().slice(-6));
+            const invoiceNo = "INV-" + String(orderId).toUpperCase();
+            const createdOn = order.createdOn || order.createdAt || new Date().toLocaleDateString('en-IN', { year:'numeric', month:'short', day:'numeric' });
+            const customerName = order.customerName || order.name || order.customer || "Valued Customer";
+            const customerMobile = order.mobile || order.customerMobile || order.phone || "N/A";
+            const customerAddress = order.address || order.fullAddress || "Address Provided At Order Placement";
+            const paymentMode = order.paymentMode || order.paymentMethod || "COD";
+            const paymentStatus = (paymentMode === 'UPI' || order.paid) ? "PAID (UPI Instant)" : "COD (Collect on Delivery)";
+
+            let items = order.items || [];
+            if (!Array.isArray(items) || items.length === 0) {
+                if (order.requirement) {
+                    items = [{ name: order.requirement, weight: 'Custom Parcel Batch', qty: 1, price: order.total || order.grandTotal || 0 }];
+                } else {
+                    items = [{ name: "Traditional Pickle Jars Assortment", weight: "500g Jar", qty: 1, price: order.total || order.grandTotal || 0 }];
+                }
+            }
+
+            let itemsTableRows = "";
+            let calculatedSubtotal = 0;
+            items.forEach((item, index) => {
+                const name = item.name || item.productName || "Pickle Jar";
+                const weight = item.weight ? ` (${item.weight})` : "";
+                const qty = Number(item.qty || item.quantity || 1);
+                const price = Number(item.price || item.unitPrice || 0);
+                const itemTotal = price * qty;
+                calculatedSubtotal += itemTotal;
+
+                itemsTableRows += `
+                <tr style="border-bottom:1px solid #e2e8f0;">
+                   <td style="padding:8px 10px; text-align:center; font-weight:600; color:#64748b;">${index + 1}</td>
+                   <td style="padding:8px 10px; font-weight:700; color:#1e293b;">${name}<span style="color:#64748b; font-weight:500;">${weight}</span></td>
+                   <td style="padding:8px 10px; text-align:right; font-weight:600; color:#334155;">₹${price.toFixed(2)}</td>
+                   <td style="padding:8px 10px; text-align:center; font-weight:700; color:#0f172a;">${qty}</td>
+                   <td style="padding:8px 10px; text-align:right; font-weight:800; color:#0b6e38;">₹${itemTotal.toFixed(2)}</td>
+                </tr>`;
+            });
+
+            const subtotal = calculatedSubtotal > 0 ? calculatedSubtotal : Number(order.subtotal || order.grandTotal || order.total || 0);
+            const couponDiscount = Number(order.couponDiscount || order.discount || 0);
+            const deliveryCharge = Number(order.deliveryCharge !== undefined ? order.deliveryCharge : (subtotal >= (s.FREE_DELIVERY_LIMIT || 500) ? 0 : (s.DELIVERY_CHARGE || 50)));
+            const grandTotal = Number(order.grandTotal || order.totalAmount || order.total || (subtotal - couponDiscount + deliveryCharge));
+
+            combinedInvoicesHtml += `
+            <div class="invoice-card" style="${orderIdx < ordersArray.length - 1 ? 'page-break-after: always; margin-bottom:40px;' : ''}">
+               
+               <!-- Header -->
+               <div class="header-bar">
+                  <div>
+                     <div class="brand-title">🏺 ${storeName}</div>
+                     <div class="brand-tagline">${tagline}</div>
+                     <div class="reg-badges">
+                        <span class="badge">FSSAI: ${fssai}</span>
+                        <span class="badge">GSTIN: ${gstin}</span>
+                     </div>
+                  </div>
+                  <div class="invoice-meta">
+                     <div class="inv-type-pill">${isParcelMode ? 'PARCEL DISPATCH BILL' : 'OFFICIAL TAX INVOICE'}</div>
+                     <div class="meta-item">Invoice No: <strong>${invoiceNo}</strong></div>
+                     <div class="meta-item">Order Date: <strong>${createdOn}</strong></div>
+                     <div class="meta-item">Payment Mode: <strong>${paymentMode} (${paymentStatus})</strong></div>
+                  </div>
+               </div>
+
+               <!-- Address Grid -->
+               <div class="address-grid">
+                  <div>
+                     <div class="box-title">🏢 ISSUED BY (SELLER & KITCHEN)</div>
+                     <div style="font-weight:800; color:#0f172a; font-size:12px;">${storeName}</div>
+                     <div style="font-size:10px; color:#475569;">${address}</div>
+                     <div style="font-size:10px; color:#475569;">📞 ${phone} | ✉️ ${email}</div>
+                  </div>
+                  <div>
+                     <div class="box-title">📍 PARCEL SHIP TO DESTINATION</div>
+                     <div style="font-weight:800; color:#0f172a; font-size:13px;">👤 ${customerName}</div>
+                     <div style="font-size:10px; color:#475569;">📞 Mobile: <strong>${customerMobile}</strong></div>
+                     <div style="font-size:11px; color:#1e293b; font-weight:700; background:#ffffff; border:1px solid #cbd5e1; padding:6px 8px; border-radius:6px; margin-top:2px;">📍 ${customerAddress}</div>
+                  </div>
+               </div>
+
+               <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:8px 12px; margin-bottom:15px; font-size:11px; color:#166534; font-weight:700;">
+                  📦 PARCEL PACKING NOTE: <span style="font-weight:500;">${parcelNote}</span>
+               </div>
+
+               <!-- Items Table -->
+               <table class="items-table">
+                  <thead>
+                     <tr>
+                        <th style="width:30px; text-align:center;">#</th>
+                        <th style="text-align:left;">Item Details</th>
+                        <th style="text-align:right; width:90px;">Price</th>
+                        <th style="text-align:center; width:50px;">Qty</th>
+                        <th style="text-align:right; width:100px;">Total</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     ${itemsTableRows}
+                  </tbody>
+               </table>
+
+               <!-- Totals -->
+               <div class="summary-area">
+                  <div class="terms-box">
+                     <div style="font-weight:800; font-size:11px; margin-bottom:2px;">📜 Storage & Quality Note:</div>
+                     <div>• ${terms}</div>
+                  </div>
+                  <div class="totals-box">
+                     <div class="total-row"><span>Subtotal:</span><span style="font-weight:700;">₹${subtotal.toFixed(2)}</span></div>
+                     ${couponDiscount > 0 ? `<div class="total-row" style="color:#16a34a;"><span>Discount:</span><span style="font-weight:700;">-₹${couponDiscount.toFixed(2)}</span></div>` : ''}
+                     <div class="total-row"><span>Delivery:</span><span style="font-weight:700;">${deliveryCharge === 0 ? 'FREE' : '₹' + deliveryCharge.toFixed(2)}</span></div>
+                     <div class="total-row grand"><span>Grand Total:</span><span>₹${grandTotal.toFixed(2)}</span></div>
+                  </div>
+               </div>
+
+            </div>`;
+        });
+
+        const batchHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Batch Parcel Bills (${ordersArray.length} Orders)</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800;900&display=swap');
+            * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif; }
+            body { background: #f8fafc; color: #1e293b; padding: 20px; font-size: 12px; }
+            .invoice-card { max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 14px; border: 1px solid #e2e8f0; padding: 24px; box-shadow:0 4px 12px rgba(0,0,0,0.05); }
+            .header-bar { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #0b6e38; padding-bottom: 14px; margin-bottom: 16px; }
+            .brand-title { font-size: 18px; font-weight: 900; color: #0b6e38; }
+            .brand-tagline { font-size: 10px; color: #64748b; }
+            .reg-badges { display: flex; gap: 6px; margin-top: 4px; }
+            .badge { background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; padding: 2px 6px; border-radius: 4px; font-size: 9px; font-weight: 800; }
+            .invoice-meta { text-align: right; }
+            .inv-type-pill { background: #0b6e38; color: #ffffff; padding: 3px 10px; border-radius: 20px; font-weight: 800; font-size: 10px; text-transform: uppercase; display: inline-block; margin-bottom: 6px; }
+            .meta-item { font-size: 11px; color: #475569; }
+            .address-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 10px; padding: 12px; margin-bottom: 16px; }
+            .box-title { font-size: 10px; font-weight: 800; color: #0b6e38; text-transform: uppercase; margin-bottom: 4px; border-bottom: 1px dashed #cbd5e1; padding-bottom: 2px; }
+            .items-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; border: 1px solid #e2e8f0; }
+            .items-table th { background: #f1f5f9; color: #475569; font-weight: 800; font-size: 10px; padding: 8px; border-bottom: 2px solid #e2e8f0; }
+            .summary-area { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+            .terms-box { flex: 1; background: #fffbe0; border: 1px solid #fef08a; padding: 10px; border-radius: 8px; font-size: 10px; color: #854d0e; }
+            .totals-box { width: 240px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
+            .total-row { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 11px; color: #475569; }
+            .total-row.grand { font-weight: 900; font-size: 14px; color: #0b6e38; border-top: 1px solid #cbd5e1; padding-top: 6px; }
+            .print-actions { max-width: 800px; margin: 0 auto 20px auto; display: flex; justify-content: space-between; align-items: center; background: #ffffff; padding: 12px 18px; border-radius: 12px; border: 1px solid #e2e8f0; }
+            @media print {
+              body { background: #ffffff; padding: 0; }
+              .invoice-card { border: none; box-shadow: none; padding: 0; }
+              .print-actions { display: none !important; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="print-actions">
+             <div style="font-weight:800; color:#0f172a; font-size:14px;">📦 Batch Parcel Dispatch Bills (${ordersArray.length} Orders)</div>
+             <div style="display:flex; gap:8px;">
+                <button onclick="window.print()" style="background:#0b6e38; color:white; border:none; padding:8px 16px; border-radius:8px; font-weight:800; cursor:pointer;">🖨️ Print Batch PDF (${ordersArray.length})</button>
+                <button onclick="window.close()" style="background:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:8px 14px; border-radius:8px; font-weight:800; cursor:pointer;">✕ Close</button>
+             </div>
+          </div>
+
+          ${combinedInvoicesHtml}
+        </body>
+        </html>`;
+
+        const printWindow = window.open('', '_blank', 'width=900,height=800,scrollbars=yes');
+        if (printWindow) {
+            printWindow.document.write(batchHtml);
+            printWindow.document.close();
+            printWindow.focus();
+        } else {
+            alert("Popup blocked. Please allow popups to view batch parcel bills.");
+        }
+    });
+};
+
+/**
+ * Universal In-App Order Status Notification System
+ */
+window.userNotifications = [];
+window.seenNotifIds = new Set();
+
+window.getUserMobileForNotif = function() {
+    try {
+        const u = App.user || (localStorage.getItem("aaharshree_user") ? JSON.parse(localStorage.getItem("aaharshree_user")) : null);
+        return u ? (u.mobile || u.phone || "") : "";
+    } catch(e) {
+        return "";
+    }
+};
+
+window.fetchNotifications = function() {
+    const mobile = window.getUserMobileForNotif();
+    if (!mobile) {
+        window.userNotifications = [];
+        const badge = document.getElementById("notifBadge");
+        if (badge) badge.style.display = "none";
+        return;
+    }
+    server("getUserNotifications", { mobile: mobile }).then(res => {
+        if (!res || !Array.isArray(res.notifications)) return;
+        
+        window.userNotifications = res.notifications;
+        const unreadCount = res.unreadCount || 0;
+
+        // Update Header Badge Counter
+        const badge = document.getElementById("notifBadge");
+        if (badge) {
+            if (unreadCount > 0) {
+                badge.innerText = unreadCount > 9 ? "9+" : unreadCount;
+                badge.style.display = "flex";
+            } else {
+                badge.style.display = "none";
+            }
+        }
+
+        // Check for NEW unread notifications (e.g. status changed from Processing to Shipped)
+        res.notifications.forEach(n => {
+            if (!n.read && !window.seenNotifIds.has(n.id)) {
+                window.seenNotifIds.add(n.id);
+                // Trigger Toast Banner if it's a new alert
+                window.showInAppStatusToast(n);
+            }
+        });
+
+        // Re-render list if drawer is currently open
+        const drawer = document.getElementById("notificationDrawerOverlay");
+        if (drawer && drawer.style.display !== "none") {
+            window.renderNotificationList();
+        }
+    }).catch(err => {
+        console.warn("Error fetching notifications:", err);
+    });
+};
+
+window.toggleNotificationDrawer = function(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const drawer = document.getElementById("notificationDrawerOverlay");
+    if (!drawer) return;
+
+    if (drawer.style.display === "none" || !drawer.style.display) {
+        drawer.style.display = "block";
+        window.renderNotificationList();
+        window.fetchNotifications();
+    } else {
+        drawer.style.display = "none";
+    }
+};
+
+window.closeNotificationDrawer = function(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const drawer = document.getElementById("notificationDrawerOverlay");
+    if (drawer) drawer.style.display = "none";
+};
+
+window.renderNotificationList = function() {
+    const container = document.getElementById("notificationListContainer");
+    const countLabel = document.getElementById("notifCountLabel");
+    if (!container) return;
+
+    const notifs = window.userNotifications || [];
+    if (countLabel) countLabel.innerText = `${notifs.length} Alerts (${notifs.filter(n => !n.read).length} Unread)`;
+
+    if (notifs.length === 0) {
+        container.innerHTML = `
+        <div style="text-align:center; padding:40px 15px; color:#64748b;">
+           <div style="font-size:40px; margin-bottom:10px;">🔔</div>
+           <strong style="font-size:14px; color:#0f172a; display:block; margin-bottom:4px;">No Order Alerts Yet</strong>
+           <p style="font-size:12px; color:#64748b; margin:0;">We will automatically alert you here as soon as your order status changes to Shipped or Out for Delivery!</p>
+        </div>`;
+        return;
+    }
+
+    let html = "";
+    notifs.forEach(n => {
+        const isShipped = (n.newStatus === "Shipped" || n.newStatus === "SHIPPED" || n.type === "SHIPPED_ALERT");
+        const cardBg = n.read ? "#ffffff" : "#f0fdf4";
+        const borderCol = isShipped ? "#bbf7d0" : "#e2e8f0";
+        const icon = isShipped ? "🚚" : (n.newStatus === "Delivered" ? "🎉" : "📦");
+        const formattedTime = new Date(n.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+        html += `
+        <div style="background:${cardBg}; border:1px solid ${borderCol}; border-radius:12px; padding:12px 14px; position:relative; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+           <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                 <span style="font-size:20px;">${icon}</span>
+                 <div>
+                    <div style="font-weight:800; font-size:13px; color:#0f172a;">${n.title || 'Order Update'}</div>
+                    <span style="font-size:10px; color:#64748b;">${formattedTime} • Order #${n.orderId}</span>
+                 </div>
+              </div>
+              ${!n.read ? `<span style="background:#16a34a; width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:4px;"></span>` : ''}
+           </div>
+
+           <p style="font-size:12px; color:#334155; margin:8px 0; line-height:1.4;">${n.message}</p>
+
+           <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #e2e8f0; padding-top:8px; margin-top:6px;">
+              <span style="font-size:11px; font-weight:800; color:#0b6e38; background:#dcfce7; padding:2px 8px; border-radius:6px;">Status: ${n.newStatus}</span>
+              <div style="display:flex; gap:8px;">
+                 <button onclick="showScreen('myOrdersScreen'); window.closeNotificationDrawer();" style="background:#0b6e38; color:white; border:none; padding:4px 10px; border-radius:6px; font-weight:800; font-size:11px; cursor:pointer;">
+                    Track Order
+                 </button>
+                 ${!n.read ? `<button onclick="window.markSingleNotifRead('${n.id}')" style="background:none; border:none; color:#64748b; font-size:11px; font-weight:700; cursor:pointer;">Dismiss</button>` : ''}
+              </div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.markSingleNotifRead = function(notifId) {
+    server("markNotificationRead", notifId).then(() => {
+        window.fetchNotifications();
+    });
+};
+
+window.markAllNotificationsAsRead = function() {
+    const mobile = window.getUserMobileForNotif();
+    server("markAllNotificationsRead", mobile).then(() => {
+        window.fetchNotifications();
+    });
+};
+
+window.clearAllNotifications = function() {
+    const mobile = window.getUserMobileForNotif();
+    server("clearNotifications", mobile).then(() => {
+        window.fetchNotifications();
+    });
+};
+
+window.showInAppStatusToast = function(notif) {
+    const toast = document.getElementById("inAppStatusToast");
+    const titleEl = document.getElementById("toastTitle");
+    const msgEl = document.getElementById("toastMessage");
+    const iconBox = document.getElementById("toastIconBox");
+    if (!toast) return;
+
+    if (titleEl) titleEl.innerText = notif.title || "Order Status Alert!";
+    if (msgEl) msgEl.innerText = notif.message || `Order #${notif.orderId} status changed to ${notif.newStatus}`;
+    if (iconBox) iconBox.innerText = (notif.newStatus === "Shipped" || notif.type === "SHIPPED_ALERT") ? "🚚" : "📦";
+
+    toast.style.display = "block";
+
+    // Auto close toast after 8 seconds
+    if (window._toastTimer) clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => {
+        window.closeInAppToast();
+    }, 8000);
+};
+
+window.closeInAppToast = function() {
+    const toast = document.getElementById("inAppStatusToast");
+    if (toast) toast.style.display = "none";
+};
+
+// Initial Notifications Fetch & Polling setup
+document.addEventListener("DOMContentLoaded", function() {
+    setTimeout(window.fetchNotifications, 1000);
+    setInterval(window.fetchNotifications, 12000);
+});
+
+// ======================================================
+// VISION BLOG & CLEAN FOOD COMMITMENT CONTROLLER
+// ======================================================
+window.currentVisionTopicId = 'zero-preservatives';
+window.visionPillsCache = null;
+
+window.openVisionBlogModal = function(topicId) {
+    if (topicId) window.currentVisionTopicId = topicId;
+    const overlay = document.getElementById("visionBlogModalOverlay");
+    if (overlay) overlay.style.display = "flex";
+    
+    window.loadAndRenderVisionBlog();
+};
+
+window.closeVisionBlogModal = function() {
+    const overlay = document.getElementById("visionBlogModalOverlay");
+    if (overlay) overlay.style.display = "none";
+};
+
+window.switchVisionBlogTopic = function(topicId) {
+    window.currentVisionTopicId = topicId;
+    window.renderVisionBlogTopic(topicId);
+};
+
+window.loadAndRenderVisionBlog = function() {
+    server("getVisionPillsData").then(data => {
+        if (data) {
+            window.visionPillsCache = data;
+            window.renderVisionBlogTopic(window.currentVisionTopicId);
+        }
+    }).catch(err => {
+        console.error("Error loading vision pills data:", err);
+    });
+};
+
+window.renderVisionBlogTopic = function(topicId) {
+    const data = window.visionPillsCache ? window.visionPillsCache[topicId] : null;
+    if (!data) return;
+
+    // Highlight active tab
+    document.querySelectorAll(".vpill-tab").forEach(tab => {
+        if (tab.getAttribute("data-id") === topicId) {
+            tab.style.background = "#0b6e38";
+            tab.style.color = "#ffffff";
+            tab.style.borderColor = "#0b6e38";
+        } else {
+            tab.style.background = "#ffffff";
+            tab.style.color = "#334155";
+            tab.style.borderColor = "#cbd5e1";
+        }
+    });
+
+    const headerIcon = document.getElementById("visionModalHeaderIcon");
+    const badge = document.getElementById("visionModalBadge");
+    const title = document.getElementById("visionModalTitle");
+    const subtitle = document.getElementById("visionModalSubtitle");
+    const commText = document.getElementById("visionModalCommercialText");
+    const aaharText = document.getElementById("visionModalAaharshreeText");
+    const bodyText = document.getElementById("visionModalBodyText");
+    const highlightsList = document.getElementById("visionModalHighlightsList");
+
+    if (headerIcon) headerIcon.innerText = data.icon || "🌿";
+    if (badge) badge.innerText = data.badge || "100% Chemical-Free";
+    if (title) title.innerText = data.title || "Our Vision";
+    if (subtitle) subtitle.innerText = data.subtitle || "";
+    if (commText) commText.innerText = data.commercialReality || "";
+    if (aaharText) aaharText.innerText = data.aaharshreeVision || "";
+    if (bodyText) bodyText.innerText = data.bodyText || "";
+
+    if (highlightsList && Array.isArray(data.highlights)) {
+        highlightsList.innerHTML = data.highlights.map(h => {
+            const isNegative = h.startsWith("❌");
+            const bg = isNegative ? "#fff5f5" : "#f0fdf4";
+            const border = isNegative ? "#fee2e2" : "#bbf7d0";
+            const text = isNegative ? "#991b1b" : "#166534";
+            return `<div style="background:${bg}; border:1px solid ${border}; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:700; color:${text}; line-height:1.4;">
+                ${h}
+            </div>`;
+        }).join("");
+    }
+};
+
+// ======================================================
+// ARTISAN HERITAGE & MAKER STORY CONTROLLER
+// ======================================================
+window.artisanStoryCache = null;
+
+window.openArtisanHeritageModal = function() {
+    const overlay = document.getElementById("artisanHeritageModalOverlay");
+    if (overlay) overlay.style.display = "flex";
+    window.loadAndRenderArtisanStory();
+};
+
+window.closeArtisanHeritageModal = function() {
+    const overlay = document.getElementById("artisanHeritageModalOverlay");
+    if (overlay) overlay.style.display = "none";
+};
+
+window.loadAndRenderArtisanStory = function() {
+    server("getArtisanHeritageStory").then(data => {
+        if (data) {
+            window.artisanStoryCache = data;
+            window.renderArtisanStory(data);
+        }
+    }).catch(err => {
+        console.error("Error loading artisan story:", err);
+    });
+};
+
+window.renderArtisanStory = function(data) {
+    if (!data) return;
+
+    const badge = document.getElementById("artisanHeroBadge");
+    const title = document.getElementById("artisanTitle");
+    const subtitle = document.getElementById("artisanSubtitle");
+    const intro = document.getElementById("artisanIntroStory");
+    const vowsGrid = document.getElementById("artisanVowsGrid");
+    const profilesList = document.getElementById("artisanProfilesList");
+    const notesFeed = document.getElementById("artisanNotesFeed");
+
+    if (badge && data.heroBadge) badge.innerText = data.heroBadge;
+    if (title && data.title) title.innerText = data.title;
+    if (subtitle && data.subtitle) subtitle.innerText = data.subtitle;
+    if (intro && data.introStory) intro.innerText = data.introStory;
+
+    // Render Vows Grid
+    if (vowsGrid && Array.isArray(data.kitchenVows)) {
+        vowsGrid.innerHTML = data.kitchenVows.map(v => `
+            <div style="background:#fff7ed; border:1px solid #ffedd5; border-radius:12px; padding:10px 12px;">
+                <div style="font-size:12px; font-weight:900; color:#9a3412; display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                    <span>${v.icon}</span> ${v.title}
+                </div>
+                <div style="font-size:11px; color:#c2410c; line-height:1.4;">${v.desc}</div>
+            </div>
+        `).join("");
+    }
+
+    // Render Artisan Profiles List
+    if (profilesList && Array.isArray(data.artisanProfiles)) {
+        profilesList.innerHTML = data.artisanProfiles.map(p => `
+            <div style="display:flex; gap:14px; background:#fff1f2; border:1px solid #ffe4e6; border-radius:16px; padding:14px; align-items:flex-start;">
+                <img src="${p.image}" alt="${p.name}" style="width:58px; height:58px; border-radius:50%; object-fit:cover; border:2px solid #fecdd3; flex-shrink:0;">
+                <div style="flex:1;">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                        <h5 style="margin:0; font-size:14px; font-weight:900; color:#9f1239;">${p.name}</h5>
+                        <span style="font-size:10px; font-weight:800; background:#ffffff; color:#be123c; padding:2px 8px; border-radius:8px;">${p.experience}</span>
+                    </div>
+                    <div style="font-size:11px; font-weight:800; color:#be123c; margin:2px 0 6px 0;">${p.role}</div>
+                    <blockquote style="margin:0; font-size:12px; font-style:italic; color:#881337; line-height:1.4; background:rgba(255,255,255,0.6); padding:8px 10px; border-radius:10px; border-left:3px solid #be123c;">
+                        "${p.quote}"
+                    </blockquote>
+                </div>
+            </div>
+        `).join("");
+    }
+
+    // Render Customer Gratitude Notes Feed
+    if (notesFeed && Array.isArray(data.gratitudeNotes)) {
+        if (data.gratitudeNotes.length === 0) {
+            notesFeed.innerHTML = `<div style="font-size:11px; color:#94a3b8; text-align:center; padding:10px;">Be the first customer to send a sweet love note!</div>`;
+        } else {
+            notesFeed.innerHTML = data.gratitudeNotes.map(n => `
+                <div style="background:white; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:11px; font-weight:800; color:#0f172a;">${n.customerName} <small style="color:#64748b;">(${n.location || 'India'})</small></span>
+                        <span style="font-size:9px; color:#94a3b8;">${n.date}</span>
+                    </div>
+                    <p style="margin:0; font-size:11px; color:#334155; line-height:1.4;">"${n.message}"</p>
+                </div>
+            `).join("");
+        }
+    }
+};
+
+window.submitArtisanGratitudeNote = function() {
+    const authorEl = document.getElementById("artisanNoteAuthor");
+    const locEl = document.getElementById("artisanNoteLocation");
+    const textEl = document.getElementById("artisanNoteText");
+
+    if (!authorEl || !textEl || !textEl.value.trim()) return;
+
+    const payload = {
+        customerName: authorEl.value.trim(),
+        location: locEl ? locEl.value.trim() : "",
+        message: textEl.value.trim()
+    };
+
+    server("addArtisanGratitudeNote", payload).then(res => {
+        if (res && res.success) {
+            alert("Thank you! Your heartwarming note has been shared with our village kitchen mothers! ❤️");
+            textEl.value = "";
+            if (res.notes && window.artisanStoryCache) {
+                window.artisanStoryCache.gratitudeNotes = res.notes;
+                window.renderArtisanStory(window.artisanStoryCache);
+            }
+        }
+    }).catch(err => {
+        console.error("Error submitting gratitude note:", err);
+    });
+};
+
+</script>

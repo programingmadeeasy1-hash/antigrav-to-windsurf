@@ -1,0 +1,439 @@
+<script>
+/* =========================================================================
+   ADMIN REVIEWS MANAGEMENT LOGIC
+   ========================================================================= */
+
+let allAdminReviewsList = [];
+let currentReviewTabFilter = 'ALL';
+
+/**
+ * Opens Admin Reviews Management Modal
+ */
+window.openAdminReviewsModal = function() {
+    const modal = document.getElementById("adminReviewsModalOverlay");
+    if (!modal) return;
+
+    modal.style.display = "flex";
+    currentReviewTabFilter = 'ALL';
+    
+    // Load products into dropdown filter if available
+    populateReviewProductDropdowns();
+
+    // Fetch Reviews from Backend
+    loadAdminReviewsFromBackend();
+};
+
+window.closeAdminReviewsModal = function() {
+    const modal = document.getElementById("adminReviewsModalOverlay");
+    if (modal) modal.style.display = "none";
+};
+
+/**
+ * Populates Product Filter Dropdowns in Reviews Modal & Edit Sub-Modal
+ */
+function populateReviewProductDropdowns() {
+    const filterSelect = document.getElementById("adminRevProductFilter");
+    const editSelect = document.getElementById("editRevProductId");
+
+    // Try to get products list from global products or server
+    let prods = [];
+    if (typeof allAdminProductsList !== 'undefined' && allAdminProductsList.length > 0) {
+        prods = allAdminProductsList;
+    } else if (typeof allProducts !== 'undefined' && allProducts.length > 0) {
+        prods = allProducts;
+    }
+
+    if (filterSelect) {
+        let optionsHtml = `<option value="ALL">All Pickle Products</option>`;
+        prods.forEach(p => {
+            optionsHtml += `<option value="${p.id}">${p.name} (${p.id})</option>`;
+        });
+        filterSelect.innerHTML = optionsHtml;
+    }
+
+    if (editSelect) {
+        let editOptionsHtml = "";
+        prods.forEach(p => {
+            editOptionsHtml += `<option value="${p.id}">${p.name} (${p.id})</option>`;
+        });
+        if (prods.length === 0) {
+            editOptionsHtml = `<option value="1">Ramkella Raw Mango Pickle (1)</option>`;
+        }
+        editSelect.innerHTML = editOptionsHtml;
+    }
+}
+
+/**
+ * Fetches all reviews from backend RPC
+ */
+function loadAdminReviewsFromBackend() {
+    const container = document.getElementById("adminReviewsCardsContainer");
+    if (container) {
+        container.innerHTML = `<div style="text-align:center; padding:30px; color:#64748b; font-size:12px;">🔄 Fetching reviews database...</div>`;
+    }
+
+    if (typeof showLoading === 'function') showLoading();
+
+    server("getAllAdminReviews")
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        allAdminReviewsList = res.reviews || [];
+
+        // Update Stats
+        const stats = res.stats || {};
+        updateReviewsStatsUI(stats);
+
+        // Update Pending reviews count badge in Dashboard if el exists
+        const dashBadge = document.getElementById("statPendingReviewsText");
+        if (dashBadge) {
+            const pendingCount = stats.pending || 0;
+            if (pendingCount > 0) {
+                dashBadge.innerText = `⚠️ ${pendingCount} Pending Approval`;
+                dashBadge.style.color = "#c2410c";
+            } else {
+                dashBadge.innerText = `✅ All ${stats.total || 0} Reviews Moderate`;
+                dashBadge.style.color = "#15803d";
+            }
+        }
+
+        renderAdminReviewsCards();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Failed to load admin reviews:", err);
+        if (container) {
+            container.innerHTML = `<div style="text-align:center; padding:30px; color:#ef4444; font-size:12px;">Failed to load reviews: ${err}</div>`;
+        }
+    });
+}
+
+/**
+ * Updates Metric Counters in Reviews Modal Header
+ */
+function updateReviewsStatsUI(stats) {
+    const totalEl = document.getElementById("revStatTotal");
+    const pendingEl = document.getElementById("revStatPending");
+    const approvedEl = document.getElementById("revStatApproved");
+    const avgEl = document.getElementById("revStatAvg");
+
+    const countAll = document.getElementById("revTabCountAll");
+    const countPending = document.getElementById("revTabCountPending");
+    const countApproved = document.getElementById("revTabCountApproved");
+    const countRejected = document.getElementById("revTabCountRejected");
+
+    if (totalEl) totalEl.innerText = stats.total || 0;
+    if (pendingEl) pendingEl.innerText = stats.pending || 0;
+    if (approvedEl) approvedEl.innerText = stats.approved || 0;
+    if (avgEl) avgEl.innerText = `${stats.avgRating || '5.0'} ⭐`;
+
+    if (countAll) countAll.innerText = stats.total || 0;
+    if (countPending) countPending.innerText = stats.pending || 0;
+    if (countApproved) countApproved.innerText = stats.approved || 0;
+    if (countRejected) countRejected.innerText = stats.rejected || 0;
+}
+
+/**
+ * Filter by Status Tab
+ */
+window.filterAdminReviewsByTab = function(tabStatus) {
+    currentReviewTabFilter = tabStatus;
+
+    // Update Tab Styles
+    const tabs = ['ALL', 'PENDING', 'APPROVED', 'REJECTED'];
+    tabs.forEach(t => {
+        const btn = document.getElementById(`revTabBtn${t.charAt(0) + t.slice(1).toLowerCase()}`);
+        if (btn) {
+            if (t === tabStatus) {
+                btn.style.background = "white";
+                btn.style.color = "#0f172a";
+                btn.style.boxShadow = "0 1px 3px rgba(0,0,0,0.1)";
+            } else {
+                btn.style.background = "transparent";
+                btn.style.color = "#64748b";
+                btn.style.boxShadow = "none";
+            }
+        }
+    });
+
+    renderAdminReviewsCards();
+};
+
+/**
+ * Renders Review Cards based on active tab, search input, and product filter
+ */
+window.renderAdminReviewsCards = function() {
+    const container = document.getElementById("adminReviewsCardsContainer");
+    if (!container) return;
+
+    const searchQuery = (document.getElementById("adminRevSearchInput") ? document.getElementById("adminRevSearchInput").value.toLowerCase().trim() : "");
+    const productFilter = (document.getElementById("adminRevProductFilter") ? document.getElementById("adminRevProductFilter").value : "ALL");
+
+    // Filter Reviews
+    let filtered = allAdminReviewsList.filter(r => {
+        // Tab Filter
+        if (currentReviewTabFilter !== 'ALL' && String(r.status).toUpperCase() !== currentReviewTabFilter) {
+            return false;
+        }
+
+        // Product Filter
+        if (productFilter !== 'ALL' && String(r.productId) !== productFilter) {
+            return false;
+        }
+
+        // Search Query
+        if (searchQuery) {
+            const name = (r.customerName || "").toLowerCase();
+            const comment = (r.comment || "").toLowerCase();
+            const prodName = (r.productName || "").toLowerCase();
+            const id = (r.id || "").toLowerCase();
+            if (!name.includes(searchQuery) && !comment.includes(searchQuery) && !prodName.includes(searchQuery) && !id.includes(searchQuery)) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        container.innerHTML = `
+        <div style="background:white; border-radius:16px; padding:35px; text-align:center; border:1px solid #e2e8f0; color:#64748b;">
+           <span style="font-size:32px; display:block; margin-bottom:8px;">📭</span>
+           <div style="font-weight:800; font-size:13px; color:#1e293b;">No reviews match this filter</div>
+           <p style="font-size:11px; margin-top:4px; color:#94a3b8;">Try changing status tabs or search keywords.</p>
+        </div>`;
+        return;
+    }
+
+    let html = "";
+    filtered.forEach(r => {
+        const ratingStars = "⭐".repeat(Number(r.rating) || 5);
+        const status = (r.status || "APPROVED").toUpperCase();
+
+        let statusBadgeBg = "#f0fdf4";
+        let statusBadgeColor = "#15803d";
+        let statusBadgeText = "✅ APPROVED";
+
+        if (status === "PENDING") {
+            statusBadgeBg = "#fff7ed";
+            statusBadgeColor = "#c2410c";
+            statusBadgeText = "⏳ PENDING";
+        } else if (status === "REJECTED") {
+            statusBadgeBg = "#fef2f2";
+            statusBadgeColor = "#b91c1c";
+            statusBadgeText = "❌ REJECTED";
+        }
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:14px 16px; border:1px solid #e2e8f0; box-shadow:0 2px 6px rgba(0,0,0,0.02); transition:all 0.2s;">
+           
+           <!-- CARD HEADER -->
+           <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:8px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                 <img src="${r.productImage || 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80'}" style="width:40px; height:40px; border-radius:10px; object-fit:cover; border:1px solid #e2e8f0;">
+                 <div>
+                    <div style="font-size:12px; font-weight:800; color:#1e293b;">${r.productName || 'Pickle Product'}</div>
+                    <span style="font-size:10px; color:#64748b; background:#f1f5f9; padding:1px 6px; border-radius:4px; font-weight:700;">ID: ${r.productId}</span>
+                 </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:3px;">
+                 <span style="background:${statusBadgeBg}; color:${statusBadgeColor}; font-size:10px; font-weight:900; padding:2px 8px; border-radius:6px; letter-spacing:0.3px;">
+                    ${statusBadgeText}
+                 </span>
+                 <span style="font-size:10px; color:#94a3b8; font-weight:600;">${r.date || 'Recent'}</span>
+              </div>
+           </div>
+
+           <!-- RATING & AUTHOR -->
+           <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+              <span style="font-size:13px; letter-spacing:1px;">${ratingStars}</span>
+              <span style="font-size:12px; font-weight:800; color:#0f172a;">${r.customerName || 'Customer'}</span>
+              ${r.verified ? '<span style="font-size:10px; background:#dcfce7; color:#166534; padding:1px 6px; border-radius:4px; font-weight:800;">✓ Verified Buyer</span>' : ''}
+           </div>
+
+           <!-- COMMENT BODY -->
+           <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; padding:10px 12px; border-radius:10px; border:1px solid #f1f5f9; margin-bottom:10px;">
+              "${r.comment || ''}"
+           </div>
+
+           <!-- ACTION CONTROLS -->
+           <div style="display:flex; justify-content:space-between; align-items:center; pt-2; border-top:1px dashed #f1f5f9;">
+              <span style="font-size:10px; color:#64748b; font-weight:600;">❤️ ${r.likes || 1} Customer Likes</span>
+
+              <div style="display:flex; gap:6px;">
+                 ${status !== 'APPROVED' ? `
+                 <button type="button" onclick="updateSingleReviewStatus('${r.id}', 'APPROVED')" style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                    ✅ Approve
+                 </button>` : ''}
+
+                 ${status !== 'REJECTED' ? `
+                 <button type="button" onclick="updateSingleReviewStatus('${r.id}', 'REJECTED')" style="background:#fef2f2; color:#b91c1c; border:1px solid #fecdd3; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                    ❌ Reject
+                 </button>` : ''}
+
+                 <button type="button" onclick="openCraftReviewModal('${r.id}')" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                    ✏️ Edit
+                 </button>
+
+                 <button type="button" onclick="deleteSingleReview('${r.id}')" style="background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1; padding:4px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                    🗑️ Delete
+                 </button>
+              </div>
+           </div>
+
+        </div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+/**
+ * Update Status of Single Review
+ */
+window.updateSingleReviewStatus = function(reviewId, newStatus) {
+    if (typeof showLoading === 'function') showLoading();
+
+    server("updateReviewStatus", { id: reviewId, status: newStatus })
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        loadAdminReviewsFromBackend();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Failed to update status: " + err);
+    });
+};
+
+/**
+ * Delete Single Review
+ */
+window.deleteSingleReview = function(reviewId) {
+    if (!confirm("Are you sure you want to delete this customer review permanently?")) return;
+
+    if (typeof showLoading === 'function') showLoading();
+
+    server("deleteAdminReview", { id: reviewId })
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        loadAdminReviewsFromBackend();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Failed to delete review: " + err);
+    });
+};
+
+/**
+ * Bulk Approve All Pending Reviews
+ */
+window.bulkApprovePendingReviewsAdmin = function() {
+    if (typeof showLoading === 'function') showLoading();
+
+    server("bulkApprovePendingReviews")
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert(`Success! ${res.count || 0} pending review(s) approved and published.`);
+        loadAdminReviewsFromBackend();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Failed to approve pending reviews: " + err);
+    });
+};
+
+/**
+ * Open Sub-Modal to Craft or Edit Review
+ */
+window.openCraftReviewModal = function(reviewId) {
+    const modal = document.getElementById("adminEditReviewModalOverlay");
+    if (!modal) return;
+
+    populateReviewProductDropdowns();
+
+    const titleEl = document.getElementById("editRevModalTitle");
+    const idInput = document.getElementById("editRevId");
+    const nameInput = document.getElementById("editRevCustomerName");
+    const ratingSelect = document.getElementById("editRevRating");
+    const statusSelect = document.getElementById("editRevStatus");
+    const commentInput = document.getElementById("editRevComment");
+    const verifiedCheck = document.getElementById("editRevVerified");
+    const prodSelect = document.getElementById("editRevProductId");
+
+    if (reviewId) {
+        // Edit Mode
+        const target = allAdminReviewsList.find(r => String(r.id) === String(reviewId));
+        if (target) {
+            if (titleEl) titleEl.innerText = "✏️ Edit Customer Review";
+            if (idInput) idInput.value = target.id;
+            if (nameInput) nameInput.value = target.customerName || "";
+            if (ratingSelect) ratingSelect.value = target.rating || 5;
+            if (statusSelect) statusSelect.value = target.status || "APPROVED";
+            if (commentInput) commentInput.value = target.comment || "";
+            if (verifiedCheck) verifiedCheck.checked = !!target.verified;
+            if (prodSelect) prodSelect.value = target.productId || "1";
+        }
+    } else {
+        // Create Mode
+        if (titleEl) titleEl.innerText = "➕ Craft Custom Featured Review";
+        if (idInput) idInput.value = "";
+        if (nameInput) nameInput.value = "Verified Customer";
+        if (ratingSelect) ratingSelect.value = "5";
+        if (statusSelect) statusSelect.value = "APPROVED";
+        if (commentInput) commentInput.value = "";
+        if (verifiedCheck) verifiedCheck.checked = true;
+    }
+
+    modal.style.display = "flex";
+};
+
+window.closeCraftReviewModal = function() {
+    const modal = document.getElementById("adminEditReviewModalOverlay");
+    if (modal) modal.style.display = "none";
+};
+
+/**
+ * Saves Admin Review via RPC
+ */
+window.saveAdminReviewSubmit = function() {
+    const id = document.getElementById("editRevId") ? document.getElementById("editRevId").value : "";
+    const productId = document.getElementById("editRevProductId") ? document.getElementById("editRevProductId").value : "1";
+    const customerName = document.getElementById("editRevCustomerName") ? document.getElementById("editRevCustomerName").value.trim() : "";
+    const rating = document.getElementById("editRevRating") ? document.getElementById("editRevRating").value : 5;
+    const status = document.getElementById("editRevStatus") ? document.getElementById("editRevStatus").value : "APPROVED";
+    const comment = document.getElementById("editRevComment") ? document.getElementById("editRevComment").value.trim() : "";
+    const verified = document.getElementById("editRevVerified") ? document.getElementById("editRevVerified").checked : true;
+
+    if (!customerName) {
+        alert("Please enter customer name.");
+        return;
+    }
+    if (!comment) {
+        alert("Please enter review comment text.");
+        return;
+    }
+
+    const payload = {
+        id: id,
+        productId: productId,
+        customerName: customerName,
+        rating: Number(rating) || 5,
+        status: status,
+        comment: comment,
+        verified: verified
+    };
+
+    if (typeof showLoading === 'function') showLoading();
+
+    server("saveAdminReview", payload)
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        closeCraftReviewModal();
+        alert(res.message || "Review saved successfully!");
+        loadAdminReviewsFromBackend();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert("Failed to save review: " + err);
+    });
+};
+</script>

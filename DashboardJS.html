@@ -1,0 +1,298 @@
+<script>
+/**
+ * Automatically called when Admin logs in
+ */
+function loadDashboard() {
+    if (App.user) {
+        const nameDisplay = document.getElementById("adminNameDisplay");
+        if (nameDisplay) nameDisplay.innerHTML = "Welcome, " + App.user.name;
+    }
+    // Small delay to ensure HTML is rendered
+    setTimeout(() => {
+        loadDashboardCounts();
+        if (typeof renderMasterShutdownCard === 'function') renderMasterShutdownCard();
+    }, 300);
+}
+
+/**
+ * Checks if logged in user is Top Tier Admin (Tier 1 Master Owner)
+ */
+window.isTopTierAdmin = function() {
+    if (App && App.user && App.user.role === 'ADMIN') return true;
+    const saved = localStorage.getItem("admin") || localStorage.getItem("aaharshree_user");
+    if (saved) {
+        try {
+            const parsed = JSON.parse(saved);
+            if (parsed.role === 'ADMIN') return true;
+        } catch(e) {}
+    }
+    return true; // Admin panel default true
+}
+
+/**
+ * Renders Master Store Operations Status card on Admin Dashboard
+ */
+window.renderMasterShutdownCard = function() {
+    const card = document.getElementById("dashboardShutdownControlCard");
+    if (!card) return;
+
+    const isMaintenanceActive = localStorage.getItem("app_maintenance_mode") === "true";
+
+    card.style.background = isMaintenanceActive ? "#fffbeb" : "#ffffff";
+    card.style.borderColor = isMaintenanceActive ? "#fcd34d" : "#e2e8f0";
+    card.style.boxShadow = "0 1px 4px rgba(0,0,0,0.04)";
+
+    let actionBtnHtml = "";
+    if (isMaintenanceActive) {
+        actionBtnHtml = `
+          <button type="button" onclick="window.handleMasterShutdownToggle(false)" 
+                  style="background:#0b6e38; color:white; border:none; padding:8px 16px; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer; box-shadow:0 2px 6px rgba(11,110,56,0.25); display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+             ▶ Re-Open Online Store
+          </button>`;
+    } else {
+        actionBtnHtml = `
+          <button type="button" onclick="window.handleMasterShutdownToggle(true)" 
+                  style="background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; padding:8px 16px; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.2s;">
+             ⏸ Pause Store Ordering
+          </button>`;
+    }
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+         <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:220px;">
+            <div style="width:10px; height:10px; border-radius:50%; background:${isMaintenanceActive ? '#d97706' : '#16a34a'}; box-shadow:0 0 0 3px ${isMaintenanceActive ? '#fef3c7' : '#dcfce7'}; flex-shrink:0;"></div>
+            <div>
+               <div style="display:flex; align-items:center; gap:6px;">
+                  <strong style="font-size:13px; color:${isMaintenanceActive ? '#92400e' : '#0f172a'}; font-weight:800;">
+                     Store Operations: ${isMaintenanceActive ? 'Maintenance Mode (Ordering Paused)' : 'Active (Online)'}
+                  </strong>
+                  <span style="background:#f1f5f9; color:#64748b; font-size:10px; font-weight:700; padding:2px 6px; border-radius:6px;">Master Control</span>
+               </div>
+               <p style="font-size:11px; color:${isMaintenanceActive ? '#b45309' : '#64748b'}; margin:2px 0 0 0; font-weight:500;">
+                  ${isMaintenanceActive 
+                    ? 'Online cart checkout & pre-orders are temporarily paused for customers.' 
+                    : 'System active, accepting online customer orders and pre-order jar bookings.'}
+               </p>
+            </div>
+         </div>
+         <div>
+            ${actionBtnHtml}
+         </div>
+      </div>`;
+}
+
+/**
+ * Handles Master Shutdown Toggle Action reliably
+ */
+window.handleMasterShutdownToggle = function(enableShutdown) {
+    if (typeof showLoading === 'function') showLoading(enableShutdown ? "Pausing Online Store Operations..." : "Re-opening Store...");
+
+    // Immediate optimistic local update
+    localStorage.setItem("app_maintenance_mode", String(enableShutdown));
+
+    const storedSettings = localStorage.getItem("app_settings");
+    const settings = storedSettings ? JSON.parse(storedSettings) : {};
+    settings.MAINTENANCE_MODE = enableShutdown;
+    localStorage.setItem("app_settings", JSON.stringify(settings));
+
+    // Update UI components immediately
+    if (typeof renderMasterShutdownCard === 'function') renderMasterShutdownCard();
+    if (typeof renderSettingsMasterShutdown === 'function') renderSettingsMasterShutdown();
+    if (typeof checkCustomerMaintenanceBanner === 'function') checkCustomerMaintenanceBanner();
+
+    server("toggleMaintenanceMode", { enabled: enableShutdown, user: App ? App.user : null })
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+    });
+}
+
+/**
+ * Fetches numbers from Spreadsheet and puts them in the cards
+ */
+function renderCouponQuickStats(coupons, approvals) {
+    const card = document.getElementById("couponQuickStatsCard");
+    if (!card) return;
+
+    const couponList = Array.isArray(coupons) ? coupons : [];
+    const approvalList = Array.isArray(approvals) ? approvals : [];
+    const activeCoupons = couponList.filter(c => c.active).length;
+    const usedCoupons = couponList.reduce((sum, c) => sum + Number(c.usedCount || 0), 0);
+    const pendingApprovals = approvalList.filter(a => String(a.status || "").toUpperCase() === "PENDING").length;
+    const topCoupon = couponList.filter(c => Number(c.usedCount || 0) > 0).sort((a, b) => Number(b.usedCount || 0) - Number(a.usedCount || 0))[0];
+
+    card.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div>
+          <div style="font-size:12px; font-weight:800; color:#92400e; margin-bottom:4px;">📈 Coupon Quick Stats</div>
+          <div style="font-size:11px; color:#64748b;">Live snapshot for promos and approvals</div>
+        </div>
+        <div style="background:#fef3c7; color:#92400e; padding:4px 8px; border-radius:999px; font-size:11px; font-weight:800;">${pendingApprovals} Pending Approval</div>
+      </div>
+      <div style="display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; margin-top:12px;">
+        <div style="background:#f8fafc; border-radius:12px; padding:10px;">
+          <div style="font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Active coupons</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:4px;">${activeCoupons}</div>
+        </div>
+        <div style="background:#f8fafc; border-radius:12px; padding:10px;">
+          <div style="font-size:10px; color:#64748b; text-transform:uppercase; letter-spacing:0.04em;">Coupon uses</div>
+          <div style="font-size:20px; font-weight:800; color:#0f172a; margin-top:4px;">${usedCoupons}</div>
+        </div>
+      </div>
+      <div style="margin-top:10px; padding:10px; border-radius:12px; background:#fffbeb; color:#92400e; font-size:12px; font-weight:700;">
+        Most-used coupon: <span style="color:#b45309;">${topCoupon ? topCoupon.code : 'None yet'}</span>
+      </div>`;
+}
+
+function loadDashboardCounts() {
+    console.log("Admin: Fetching latest stats...");
+    
+    server("getDashboardStats")
+    .then(stats => {
+        const pBox = document.getElementById("statProducts");
+        const oBox = document.getElementById("statOrders");
+        const iBox = document.getElementById("statInventory");
+
+        if (pBox) pBox.innerHTML = stats.products || "0";
+        if (oBox) oBox.innerHTML = stats.orders || "0";
+        if (iBox) iBox.innerHTML = stats.inventory || "0";
+
+        Promise.all([
+            server("getAllCoupons"),
+            server("getAutoCouponApprovals")
+        ]).then(([coupons, approvals]) => {
+            const couponStats = Array.isArray(coupons) ? coupons : [];
+            const approvalStats = Array.isArray(approvals) ? approvals : [];
+            const activeCoupons = couponStats.filter(c => c.active).length;
+            const usedCoupons = couponStats.reduce((sum, c) => sum + Number(c.usedCount || 0), 0);
+            const pendingApprovals = approvalStats.filter(a => String(a.status || "").toUpperCase() === "PENDING").length;
+            const couponStatBox = document.getElementById("statCoupons");
+            if (couponStatBox) {
+                couponStatBox.innerHTML = `${activeCoupons} Active <span style="display:inline-block; margin-top:4px; background:#fef3c7; color:#92400e; padding:2px 7px; border-radius:999px; font-size:10px; font-weight:800;">${pendingApprovals} Pending</span><br><span style="font-size:10px; color:#64748b;">${usedCoupons} uses</span>`;
+            }
+            renderCouponQuickStats(couponStats, approvalStats);
+        }).catch(() => {
+            renderCouponQuickStats([], []);
+        });
+
+        server("getSpecialOrders").then(sOrders => {
+            const spBox = document.getElementById("statSpecialOrders");
+            if (spBox && sOrders) {
+                const pending = sOrders.filter((s) => s.status === "PENDING").length;
+                spBox.innerHTML = pending > 0 ? `${sOrders.length} (${pending} New)` : `${sOrders.length} Received`;
+            }
+        }).catch(e => {});
+
+        server("getAllAdminReviews").then(revRes => {
+            const revBadge = document.getElementById("statPendingReviewsText");
+            if (revBadge && revRes && revRes.stats) {
+                const pending = revRes.stats.pending || 0;
+                if (pending > 0) {
+                    revBadge.innerText = `⚠️ ${pending} Pending Approval`;
+                    revBadge.style.color = "#c2410c";
+                } else {
+                    revBadge.innerText = `✅ All ${revRes.stats.total || 0} Live`;
+                    revBadge.style.color = "#15803d";
+                }
+            }
+        }).catch(e => {});
+        
+        setTimeout(() => {
+            checkLowStockAlerts();
+        }, 400);
+        
+        console.log("Admin: Stats updated successfully.");
+    })
+    .catch(err => {
+        console.error("Admin Stats UI Error:", err);
+    });
+}
+
+/**
+ * Checks for low stock products and displays alert card on admin dashboard
+ */
+function checkLowStockAlerts() {
+    const card = document.getElementById("dashboardLowStockCard");
+    if (!card) return;
+
+    server("getAllProducts").then(products => {
+        if (!products || !Array.isArray(products)) {
+            card.style.display = "none";
+            return;
+        }
+
+        const lowStockItems = products.filter(p => {
+            const qty = Number(p.stock !== undefined ? p.stock : (p.quantity !== undefined ? p.quantity : 100));
+            return qty <= 10;
+        });
+
+        if (lowStockItems.length === 0) {
+            card.style.display = "none";
+            return;
+        }
+
+        card.style.display = "block";
+        let listHtml = "";
+        lowStockItems.forEach(item => {
+            const qty = Number(item.stock !== undefined ? item.stock : (item.quantity !== undefined ? item.quantity : 0));
+            const isOut = qty <= 0;
+            listHtml += `
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px dashed #fed7aa; font-size:12px;">
+                 <div>
+                    <strong style="color:#7c2d12;">${item.name || item.productName}</strong>
+                    <span style="font-size:11px; color:#9a3412; margin-left:6px;">(${item.category || 'General'})</span>
+                 </div>
+                 <div>
+                    <span style="background:${isOut ? '#fee2e2' : '#ffedd5'}; color:${isOut ? '#991b1b' : '#c2410c'}; font-weight:800; font-size:11px; padding:2px 8px; border-radius:6px;">
+                       ${isOut ? '❌ Out of Stock' : '⚠️ ' + qty + ' left'}
+                    </span>
+                 </div>
+              </div>`;
+        });
+
+        card.innerHTML = `
+          <div style="background:#fff7ed; border:1px solid #fdba74; border-radius:18px; padding:16px; box-shadow:0 2px 10px rgba(251,146,60,0.15);">
+             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                   <span style="font-size:20px;">⚠️</span>
+                   <strong style="font-size:14px; color:#7c2d12; font-weight:800;">
+                      Low Stock Inventory Alert (${lowStockItems.length} Items)
+                   </strong>
+                </div>
+                <button onclick="showScreen('inventoryScreen'); loadInventory();" style="background:#ea580c; color:white; border:none; padding:6px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer;">
+                   📦 Restock Now
+                </button>
+             </div>
+             <div>
+                ${listHtml}
+             </div>
+          </div>`;
+    }).catch(e => {
+        card.style.display = "none";
+    });
+}
+
+// Navigation helpers
+function openCategories() {
+    showScreen("categoriesScreen");
+    if (typeof loadCategories === 'function') loadCategories();
+}
+
+function openSettings() {
+    showScreen("settingsScreen");
+    if (typeof loadSettings === 'function') loadSettings();
+}
+
+function openCouponsAdmin() {
+    showScreen("couponsScreen");
+    if (typeof loadCouponsAdmin === 'function') loadCouponsAdmin();
+}
+
+function loadAdminProducts() {
+    if (typeof window.loadAdminProductsLogic === 'function') {
+        window.loadAdminProductsLogic();
+    }
+}
+</script>

@@ -1,0 +1,449 @@
+<script>
+let activeBusinessSettings = {}; 
+let appliedCoupon = null;
+let couponDiscountAmount = 0;
+
+function renderCouponSummaryCard(coupons) {
+    const card = document.getElementById("couponSummaryCard");
+    if (!card) return;
+
+    const activeCoupons = Array.isArray(coupons) ? coupons.filter(c => c && c.active && !c.expired) : [];
+    if (!activeCoupons.length) {
+        card.innerHTML = `<div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:12px; padding:10px; font-size:12px; color:#64748b;">No active coupons right now. Check back later for fresh offers.</div>`;
+        return;
+    }
+
+    const preview = activeCoupons.slice(0, 3).map(c => `<span style="display:inline-block; padding:4px 8px; border-radius:999px; background:#ecfdf5; color:#166534; font-weight:700; font-size:11px;">${c.code}</span>`).join(" ");
+    card.innerHTML = `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:10px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                <strong style="font-size:12px; color:#166534;">🎁 Available Coupons</strong>
+                <span style="font-size:11px; color:#16a34a; font-weight:700;">${activeCoupons.length} ready</span>
+            </div>
+            <div style="margin-top:7px; display:flex; flex-wrap:wrap; gap:6px;">${preview}</div>
+        </div>`;
+}
+
+function loadCheckoutCouponSummary() {
+    server("getAllCoupons").then(coupons => {
+        renderCouponSummaryCard(coupons);
+    }).catch(() => {
+        renderCouponSummaryCard([]);
+    });
+}
+
+let userAvailablePoints = 0;
+let isPointsRedemptionSelected = false;
+
+window.loadUserCheckoutPoints = function() {
+    if (!App || !App.user || !App.user.mobile) return;
+    server("getCustomerRewardBalance", App.user.mobile).then(pts => {
+        userAvailablePoints = Math.max(0, Number(pts) || 0);
+        renderPointsRedemptionBox();
+    }).catch(err => console.warn("Points balance load warning:", err));
+};
+
+function renderPointsRedemptionBox() {
+    const box = document.getElementById("checkoutPointsBox");
+    const textEl = document.getElementById("availablePointsText");
+    const maxTextEl = document.getElementById("maxPointsConcessionText");
+    const labelQty = document.getElementById("pointsToRedeemLabel");
+    const labelVal = document.getElementById("pointsDiscountValueLabel");
+    if (!box) return;
+
+    if (!App.user || userAvailablePoints <= 0) {
+        box.style.display = "none";
+        isPointsRedemptionSelected = false;
+        return;
+    }
+
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.price) * Number(item.qty)), 0);
+    const maxConcession = Math.min(userAvailablePoints, Math.floor(subtotal * 0.20));
+
+    if (maxConcession <= 0) {
+        box.style.display = "none";
+        isPointsRedemptionSelected = false;
+        return;
+    }
+
+    box.style.display = "block";
+    if (textEl) textEl.innerText = `${userAvailablePoints} Points (₹${userAvailablePoints})`;
+    if (maxTextEl) maxTextEl.innerText = `₹${maxConcession} (20% cap)`;
+    if (labelQty) labelQty.innerText = maxConcession;
+    if (labelVal) labelVal.innerText = `₹${maxConcession}`;
+}
+
+window.togglePointsRedemption = function() {
+    const chk = document.getElementById("redeemPointsCheckbox");
+    isPointsRedemptionSelected = chk ? chk.checked : false;
+    renderCheckout();
+};
+
+/**
+ * Opens Checkout and fetches latest Admin Settings
+ */
+window.openCheckout = function() {
+    appliedCoupon = null;
+    couponDiscountAmount = 0;
+    isPointsRedemptionSelected = false;
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Mode Active:\nAaharShree Naturals is currently undergoing scheduled system maintenance by the Master Admin.\n\nOnline checkout and cart ordering are temporarily paused. Please check back shortly!");
+        return;
+    }
+
+    if (!App.user) {
+        alert("Please login to proceed to checkout.");
+        return showScreen("loginScreen");
+    }
+    
+    if (cart.length === 0) {
+        alert("Your cart is empty. Add some pickles first!");
+        return showScreen("homeScreen");
+    }
+
+    showLoading();
+    
+    // Fetch latest rules from Spreadsheet
+    server("getAllSettings").then(settings => {
+        hideLoading();
+        activeBusinessSettings = settings;
+        
+        const hasPreOrderOrBulk = cart.some(item => item.isPreOrder || item.isBulk || item.type === 'PREORDER' || item.type === 'BULK');
+        const paymentSelect = document.getElementById("paymentMode");
+        const codOption = document.getElementById("codOption");
+        const codNotice = document.getElementById("codDisabledNotice");
+        const policyNotice = document.getElementById("preOrderBulkPolicyNotice");
+
+        if (hasPreOrderOrBulk) {
+            if (policyNotice) policyNotice.style.display = "block";
+            if (codOption) codOption.disabled = true;
+            if (codNotice) codNotice.style.display = "block";
+            if (paymentSelect) paymentSelect.value = "UPI";
+        } else {
+            if (policyNotice) policyNotice.style.display = "none";
+            if (codOption) codOption.disabled = false;
+            if (codNotice) codNotice.style.display = "none";
+        }
+
+        const upiLabel = document.getElementById("upiOptionLabel");
+        if (upiLabel) {
+            const discAmount = settings.UPI_DISCOUNT || 0;
+            upiLabel.innerHTML = hasPreOrderOrBulk 
+                ? `Pay via QR / Online (Advance Payment Mandatory)` 
+                : `Pay via QR (₹${discAmount} Instant Discount)`;
+        }
+        
+        showScreen("checkoutScreen");
+        loadCheckoutCouponSummary();
+        loadUserCheckoutPoints();
+        renderCheckout();
+    }).catch(err => { 
+        hideLoading(); 
+        console.error("Settings Load Error:", err);
+        alert("Failed to load business settings. Check your connection."); 
+    });
+};
+
+/**
+ * Recalculates totals when the user switches between COD and UPI
+ */
+window.togglePaymentUI = function() {
+    const mode = document.getElementById("paymentMode").value;
+    const qrBox = document.getElementById("qrContainer");
+    const discRow = document.getElementById("upiDiscountRow");
+    
+    if (mode === "UPI") {
+        qrBox.style.display = "block";
+        discRow.style.display = "flex";
+    } else {
+        qrBox.style.display = "none";
+        discRow.style.display = "none";
+    }
+    
+    renderCheckout();
+};
+
+/**
+ * Main Rendering: Builds the itemized summary and the calculation breakdown
+ */
+function renderCheckout() {
+    const couponMessage = document.getElementById("couponMessage");
+
+    const custName = (App.user && App.user.name) ? App.user.name : "";
+    const custMobile = (App.user && App.user.mobile) ? App.user.mobile : "";
+    const addr = (App.user && (App.user.fullAddress || App.user.address)) ? (App.user.fullAddress || App.user.address) : "";
+    const addrBox = document.getElementById("deliveryAddress");
+    
+    const isNameValid = custName.trim().length > 0;
+    const isMobileValid = /^\d{10}$/.test(custMobile.trim().replace(/\D/g, ''));
+    const isAddrValid = addr.trim().length > 10;
+
+    if (addrBox) {
+        if (isNameValid && isMobileValid && isAddrValid) {
+            addrBox.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
+                    <h3 style="color:var(--primary); margin:0; font-size:15px; font-weight:800; display:flex; align-items:center; gap:6px;">
+                        <span>📍</span> Delivery Address Details
+                    </h3>
+                    <span style="font-size:10px; font-weight:800; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:12px;">Verified</span>
+                </div>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:10px; border-radius:12px; margin-bottom:8px;">
+                    <p style="font-weight:800; font-size:13px; color:#1e293b; margin:0 0 4px 0;">👤 ${custName} <span style="font-weight:600; color:#64748b; font-size:12px;">(📞 ${custMobile})</span></p>
+                    <p style="font-weight:600; font-size:12px; color:#334155; margin:0; line-height:1.4;">🏠 ${addr}</p>
+                </div>
+                <button class="secondaryButton" style="width:auto; padding:6px 12px; font-size:11px; font-weight:700;" onclick="goToProfileForAddress()">✏️ Change Delivery Address</button>
+            `;
+        } else {
+            const missing = [];
+            if (!isNameValid) missing.push("Full Name");
+            if (!isMobileValid) missing.push("10-Digit Mobile No.");
+            if (!isAddrValid) missing.push("Complete House/Street/PIN Address");
+
+            addrBox.innerHTML = `
+                <h3 style="color:#b91c1c; margin-bottom:6px; font-size:15px; font-weight:800; display:flex; align-items:center; gap:6px;">
+                    <span>⚠️</span> Incomplete Delivery Information
+                </h3>
+                <div style="background:#fef2f2; border:1px solid #fca5a5; padding:10px; border-radius:12px; margin-bottom:8px; font-size:12px; color:#991b1b; line-height:1.4;">
+                    <strong>Mandatory details required for order dispatch:</strong><br>
+                    • Missing: ${missing.join(", ")}
+                </div>
+                <button class="primaryButton" style="width:100%; padding:10px; font-size:12px; font-weight:800; background:#dc2626;" onclick="goToProfileForAddress()">
+                    ✏️ Complete Address Details in Profile →
+                </button>
+            `;
+        }
+    }
+
+    const summaryList = document.getElementById("checkoutItemsList");
+    let itemsHtml = "";
+    let subtotal = 0;
+    
+    if (summaryList) {
+        cart.forEach(item => {
+            const lineTotal = Number(item.price) * Number(item.qty);
+            subtotal += lineTotal;
+            itemsHtml += `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; font-size:13px; padding-bottom:8px; border-bottom:1px solid #f9f9f9;">
+                    <div style="display:flex; flex-direction:column;">
+                        <span style="font-weight:700; color:#333;">${item.name}</span>
+                        <span style="font-size:11px; color:#777;">${item.weight} x ${item.qty} Qty</span>
+                    </div>
+                    <div style="font-weight:700; color:#000;">₹${lineTotal}</div>
+                </div>`;
+        });
+        summaryList.innerHTML = itemsHtml;
+    }
+
+    const hasPreOrderOrBulk = cart.some(item => item.isPreOrder || item.isBulk || item.type === 'PREORDER' || item.type === 'BULK');
+    const mode = document.getElementById("paymentMode")?.value || "UPI";
+    const upiDisc = Number(activeBusinessSettings.UPI_DISCOUNT || 0);
+    const delFee = Number(activeBusinessSettings.DELIVERY_CHARGE || 0);
+    const freeLim = Number(activeBusinessSettings.FREE_DELIVERY_LIMIT || 0);
+
+    let delivery = subtotal >= freeLim ? 0 : delFee;
+    let couponDiscount = hasPreOrderOrBulk ? 0 : couponDiscountAmount;
+    let upiDiscount = hasPreOrderOrBulk ? 0 : ((mode === "UPI") ? upiDisc : 0);
+
+    const maxPointsConcession = Math.min(userAvailablePoints, Math.floor(subtotal * 0.20));
+    const activePointsConcession = isPointsRedemptionSelected ? maxPointsConcession : 0;
+
+    let totalDiscount = hasPreOrderOrBulk ? 0 : (couponDiscount + upiDiscount + activePointsConcession);
+    let total = Math.max(0, subtotal + delivery - totalDiscount);
+
+    document.getElementById("summarySubtotal").innerHTML = "₹" + subtotal;
+    document.getElementById("summaryDelivery").innerHTML = (delivery === 0) ? "<span style='color:var(--primary); font-weight:800;'>FREE</span>" : "₹" + delivery;
+    
+    const couponRow = document.getElementById("couponDiscountRow");
+    if (couponRow) {
+        couponRow.style.display = couponDiscount > 0 ? "flex" : "none";
+        document.getElementById("couponDiscAmount").innerHTML = "-₹" + couponDiscount;
+    }
+
+    const pointsRow = document.getElementById("pointsConcessionRow");
+    if (pointsRow) {
+        pointsRow.style.display = activePointsConcession > 0 ? "flex" : "none";
+        const ptsAmt = document.getElementById("pointsConcessionAmount");
+        if (ptsAmt) ptsAmt.innerHTML = "-₹" + activePointsConcession;
+    }
+
+    const upiRow = document.getElementById("upiDiscountRow");
+    if (upiRow) {
+        upiRow.style.display = upiDiscount > 0 ? "flex" : "none";
+        document.getElementById("upiDiscAmount").innerHTML = "-₹" + upiDiscount;
+    }
+    document.getElementById("summaryTotal").innerHTML = "₹" + total;
+
+    if (mode === "UPI") {
+        const upiID = (activeBusinessSettings.UPI_ID || "q2106030721@ybl").trim();
+        const upiLink = `upi://pay?pa=${upiID}&pn=AaharShree&am=${total}&cu=INR`;
+        document.getElementById("upiQR").src = `https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl=${encodeURIComponent(upiLink)}`;
+        document.getElementById("qrAmount").innerHTML = total;
+    }
+
+    renderPointsRedemptionBox();
+}
+
+/**
+ * Flag to return here after editing address
+ */
+window.goToProfileForAddress = function() {
+    App.returnToCheckout = true; 
+    showScreen('profileScreen');
+}
+
+window.applyCouponCode = function() {
+    const input = document.getElementById("couponCodeInput");
+    const message = document.getElementById("couponMessage");
+    const code = (input ? input.value : "").trim();
+    const subtotal = cart.reduce((acc, item) => acc + (Number(item.price) * Number(item.qty)), 0);
+
+    if (!code) {
+        if (message) message.innerHTML = "Please enter a coupon code.";
+        return;
+    }
+
+    if (cart.some(item => item.isPreOrder || item.isBulk || item.type === 'PREORDER' || item.type === 'BULK')) {
+        appliedCoupon = null;
+        couponDiscountAmount = 0;
+        if (message) message.innerHTML = "<span style='color:#dc2626;'>Coupons do not apply to pre-order or bulk items.</span>";
+        renderCheckout();
+        return;
+    }
+
+    server("validateCoupon", {
+        code: code,
+        subtotal: subtotal,
+        customerId: App.user ? (App.user.customerId || App.user.id) : "",
+        mobile: App.user ? App.user.mobile : ""
+    }).then(res => {
+        if (res && res.valid) {
+            appliedCoupon = res.coupon;
+            couponDiscountAmount = Number(res.discount || 0);
+            if (message) message.innerHTML = `<span style='color:#15803d;'>${res.message}</span>`;
+            renderCheckout();
+        } else {
+            appliedCoupon = null;
+            couponDiscountAmount = 0;
+            if (message) message.innerHTML = `<span style='color:#dc2626;'>${res && res.message ? res.message : 'Coupon could not be applied.'}</span>`;
+            renderCheckout();
+        }
+    }).catch(err => {
+        appliedCoupon = null;
+        couponDiscountAmount = 0;
+        if (message) message.innerHTML = `<span style='color:#dc2626;'>${err.message || err}</span>`;
+        renderCheckout();
+    });
+};
+
+/**
+ * Final Step: Places the order in the Spreadsheet
+ */
+window.placeOrder = function() {
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Active:\nOnline order submission is currently paused for scheduled maintenance by the Master Admin.");
+        return;
+    }
+
+    // Strict validation for mandatory customer delivery information
+    const custName = (App.user && App.user.name) ? App.user.name.trim() : "";
+    const custMobile = (App.user && App.user.mobile) ? App.user.mobile.trim().replace(/\D/g, '') : "";
+    const custAddr = (App.user && (App.user.fullAddress || App.user.address)) ? (App.user.fullAddress || App.user.address).trim() : "";
+
+    const missingInfo = [];
+    if (!custName) missingInfo.push("Full Name");
+    if (!custMobile || custMobile.length !== 10) missingInfo.push("10-Digit Mobile Number");
+    if (!custAddr || custAddr.length < 10) missingInfo.push("Complete Delivery Address (House No, Street, City & PIN Code)");
+
+    if (missingInfo.length > 0) {
+        alert(`⚠️ Cannot place order - Required Delivery Info Missing:\n\n• ${missingInfo.join("\n• ")}\n\nPlease complete your profile information to proceed with delivery.`);
+        goToProfileForAddress();
+        return;
+    }
+
+    const btn = document.getElementById("placeOrderBtn");
+    btn.disabled = true;
+    btn.innerHTML = "Processing Order...";
+
+    const hasPreOrderOrBulk = cart.some(item => item.isPreOrder || item.isBulk || item.type === 'PREORDER' || item.type === 'BULK');
+    const mode = document.getElementById("paymentMode").value;
+
+    if (hasPreOrderOrBulk && mode === "COD") {
+        btn.disabled = false;
+        btn.innerHTML = "Confirm & Place Order";
+        alert("⚠️ Cash on Delivery (COD) is not allowed for Pre-Orders or Bulk Orders. Please select Online Advance Payment via UPI QR.");
+        return;
+    }
+    
+    // Final check for calculations
+    let subtotal = cart.reduce((acc, item) => acc + (Number(item.price) * Number(item.qty)), 0);
+    const minOrder = Number(activeBusinessSettings.MIN_ORDER_VALUE || 0);
+
+    if (minOrder > 0 && subtotal < minOrder) {
+        btn.disabled = false;
+        btn.innerHTML = "Confirm & Place Order";
+        alert(`Minimum order value is ₹${minOrder}. Please add more items to your cart (Current subtotal: ₹${subtotal}).`);
+        return;
+    }
+
+    const upiDisc = Number(activeBusinessSettings.UPI_DISCOUNT || 0);
+    const delFee = Number(activeBusinessSettings.DELIVERY_CHARGE || 0);
+    const freeLim = Number(activeBusinessSettings.FREE_DELIVERY_LIMIT || 0);
+
+    let delivery = subtotal >= freeLim ? 0 : delFee;
+    let couponDiscount = hasPreOrderOrBulk ? 0 : couponDiscountAmount;
+    let upiDiscount = hasPreOrderOrBulk ? 0 : ((mode === "UPI") ? upiDisc : 0);
+    const maxPointsConcession = Math.min(userAvailablePoints, Math.floor(subtotal * 0.20));
+    const activePointsConcession = (isPointsRedemptionSelected && !hasPreOrderOrBulk) ? maxPointsConcession : 0;
+
+    let discount = hasPreOrderOrBulk ? 0 : (couponDiscount + upiDiscount + activePointsConcession);
+    let finalTotal = Math.max(0, subtotal + delivery - discount);
+
+    const orderData = {
+        customerID: App.user.customerId || App.user.id,
+        customerName: App.user.name,
+        mobile: App.user.mobile,
+        address: App.user.fullAddress || App.user.address || "",
+        items: cart,
+        subtotal: subtotal,
+        delivery: delivery,
+        discount: discount,
+        couponCode: appliedCoupon ? appliedCoupon.code : "",
+        couponDiscount: couponDiscount,
+        pointsRedeemed: activePointsConcession,
+        paymentMode: mode,
+        total: finalTotal
+    };
+
+    console.log("Confirming order...", orderData);
+
+    server("createOrder", orderData).then(res => {
+        const orderId = (res && res.orderId) ? res.orderId : ("ORD" + Math.floor(1000 + Math.random() * 9000));
+        const supportPhone = (activeBusinessSettings && activeBusinessSettings.SUPPORT_WHATSAPP) ? activeBusinessSettings.SUPPORT_WHATSAPP : "9876543210";
+        const itemsSummary = cart.map(i => `${i.name || i.productName} (${i.weight}) x ${i.qty}`).join(", ");
+
+        // Clear cart memory and badge
+        cart = []; 
+        localStorage.removeItem("cart"); 
+        if (typeof updateCartBadge === 'function') updateCartBadge();
+        
+        const confirmWhatsApp = confirm(`🎉 ORDER PLACED SUCCESSFULLY!\n\nOrder ID: #${orderId}\nTotal Amount: ₹${finalTotal}\n\nWould you like to open WhatsApp to send your order confirmation receipt to AaharShree support?`);
+        
+        if (confirmWhatsApp) {
+            const waText = `Namaste AaharShree Naturals! 🌾\nI have placed an order via the app.\n\n📌 *Order ID:* #${orderId}\n👤 *Name:* ${App.user.name}\n📱 *Phone:* ${App.user.mobile}\n📍 *Address:* ${App.user.fullAddress}\n🛒 *Items:* ${itemsSummary}\n💰 *Total Paid/COD:* ₹${finalTotal} (${mode})\n\nPlease confirm dispatch timeline! 🙏`;
+            let cleanSupport = supportPhone.replace(/\D/g, "");
+            if (cleanSupport.length === 10) cleanSupport = "91" + cleanSupport;
+            window.open(`https://wa.me/${cleanSupport}?text=${encodeURIComponent(waText)}`, '_blank');
+        }
+
+        showScreen("myOrdersScreen");
+        if (typeof loadMyOrders === 'function') loadMyOrders();
+    }).catch(err => { 
+        btn.disabled = false; 
+        btn.innerHTML = "Confirm & Place Order"; 
+        console.error("Order Failure:", err);
+        alert("Failed to place order: " + err); 
+    });
+};
+</script>

@@ -1,0 +1,283 @@
+<script>
+/**
+ * Fetches order history for currently logged-in customer
+ */
+function loadMyOrders() {
+    if (!App.user) {
+        alert("Please login to view your orders.");
+        return showScreen("loginScreen");
+    }
+
+    showLoading();
+    console.log("Customer: Fetching order history for:", App.user.mobile);
+
+    const custId = App.user.customerId || App.user.id || App.user.mobile;
+    const mobile = App.user.mobile || "";
+
+    Promise.all([
+        server("getCustomerOrders", { customerID: custId, customerId: custId, mobile: mobile }).catch(err => { console.warn(err); return []; }),
+        server("getCustomerSpecialOrders", { customerID: custId, customerId: custId, mobile: mobile }).catch(err => { console.warn(err); return []; })
+    ]).then(([regularOrders, specialOrders]) => {
+        hideLoading();
+        
+        // Tag orders
+        const regList = (regularOrders || []).map(o => ({ ...o, _kind: 'REGULAR' }));
+        const specList = (specialOrders || []).map(s => ({ ...s, _kind: s.type || 'SPECIAL' }));
+        
+        const combined = [...regList, ...specList];
+        renderMyOrdersList(combined);
+    }).catch(err => {
+        hideLoading();
+        console.error("Order Load Error:", err);
+        document.getElementById("myOrdersList").innerHTML = `<p style="text-align:center; color:red; padding:30px;">Failed to load orders: ${err}</p>`;
+    });
+}
+
+/**
+ * Renders list of orders as card UI
+ */
+function renderMyOrdersList(orders) {
+    const container = document.getElementById("myOrdersList");
+    if (!container) return;
+
+    if (!orders || orders.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:50px 20px; background:white; border-radius:18px; box-shadow:var(--shadow);">
+               <div style="font-size:40px; margin-bottom:10px;">📦</div>
+               <h3 style="color:#444; margin-bottom:5px;">No orders found</h3>
+               <p style="color:#888; font-size:12px; margin-bottom:15px;">You haven't placed any pickle orders, pre-orders, or bulk quotes yet.</p>
+               <button class="primaryButton" onclick="showScreen('homeScreen')" style="width:auto; padding:8px 18px; font-size:13px;">Shop Now</button>
+            </div>`;
+        return;
+    }    let html = "";
+    orders.forEach((o, index) => {
+        const orderStatusStr = o.orderStatus || o.status || 'PENDING';
+        // Status Color Coding
+        let statusBadge = `<span style="background:#fff3cd; color:#856404; padding:4px 10px; border-radius:10px; font-weight:800; font-size:11px;">${orderStatusStr}</span>`;
+        if (orderStatusStr === 'Delivered' || orderStatusStr === 'DELIVERED' || orderStatusStr === 'APPROVED' || orderStatusStr === 'FULFILLED') {
+            statusBadge = `<span style="background:#d4edda; color:#155724; padding:4px 10px; border-radius:10px; font-weight:800; font-size:11px;">${orderStatusStr} ✓</span>`;
+        } else if (orderStatusStr === 'Cancelled' || orderStatusStr === 'CANCELLED' || orderStatusStr === 'REJECTED') {
+            statusBadge = `<span style="background:#f8d7da; color:#721c24; padding:4px 10px; border-radius:10px; font-weight:800; font-size:11px;">${orderStatusStr}</span>`;
+        }
+
+        const dateDisplay = o.createdOn || o.createdAt ? new Date(o.createdOn || o.createdAt).toLocaleDateString() : '';
+        const orderIdDisplay = o.orderId || o.id || 'ORD';
+
+        let typeBadge = `<span style="background:#f1f5f9; color:#475569; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px; margin-right:6px;">PICKLE ORDER</span>`;
+        if (o._kind === 'PREORDER' || o.type === 'PREORDER') {
+            typeBadge = `<span style="background:#e0f2fe; color:#0369a1; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px; margin-right:6px;">SOLAR PRE-ORDER</span>`;
+        } else if (o._kind === 'BULK' || o.type === 'BULK') {
+            typeBadge = `<span style="background:#e0e7ff; color:#3730a3; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px; margin-right:6px;">WHOLESALE BULK</span>`;
+        }
+
+        // Render Item Breakdown
+        let itemsHtml = "";
+        if (o._kind === 'PREORDER' || o.type === 'PREORDER') {
+            itemsHtml = `<div style="font-size:12px; color:#334155;"><strong>${o.productName || 'Sun-Aged Solar Batch'}</strong> (${o.quantity || 1} ${o.unit || 'Jar(s)'}) - Batch: ${o.batchNumber || o.batchId || 'Aged Batch'}</div>`;
+        } else if (o._kind === 'BULK' || o.type === 'BULK') {
+            if (o.items && Array.isArray(o.items) && o.items.length > 0) {
+                itemsHtml = o.items.map(i => `<div style="font-size:12px; color:#334155;">🥭 ${i.productName} (${i.qty} ${i.unit})</div>`).join('');
+            } else {
+                itemsHtml = `<div style="font-size:12px; color:#334155;"><strong>${o.eventName || 'Wholesale Request'}</strong>: ${o.requirement || 'Custom Order'}</div>`;
+            }
+        } else if (o.items && Array.isArray(o.items)) {
+            o.items.forEach(i => {
+                itemsHtml += `
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#555; margin-bottom:4px;">
+                        <span>🥭 ${i.name || i.productName} (${i.weight || 'std'}) x ${i.qty || 1}</span>
+                        <span style="font-weight:600;">₹${Number(i.price || 0) * Number(i.qty || 1)}</span>
+                    </div>`;
+            });
+        }
+
+        const timelineHtml = renderOrderTrackerTimeline(orderStatusStr);
+        const itemsJsonStr = JSON.stringify(o.items || []).replace(/"/g, '&quot;');
+        
+        // Auto expand first order for immediate visibility, keep others collapsed
+        const autoExpand = index === 0;
+
+        const deliveryAddressDisplay = o.address || o.fullAddress;
+
+        html += `
+        <div class="order-card-container" style="background:white; border-radius:18px; padding:15px; box-shadow:var(--shadow); margin-bottom:15px; border:1px solid #f1f5f9; transition:all 0.2s ease-in-out;">
+           <!-- Card Top Header -->
+           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f0f0f0; padding-bottom:10px; margin-bottom:10px;">
+              <div>
+                 <div>${typeBadge}<span style="font-weight:800; color:var(--primary); font-size:14px;">Order #${orderIdDisplay}</span></div>
+                 <div style="font-size:11px; color:#888; margin-top:2px;">${dateDisplay}</div>
+              </div>
+              ${statusBadge}
+           </div>
+
+           <!-- Summary Row & Interactive Toggle Button -->
+           <div style="display:flex; justify-content:space-between; align-items:center; font-size:13px; font-weight:700;">
+              <div>
+                 <span style="color:#666; font-size:11px; display:block;">Payment (${o.paymentMode || 'COD'}):</span>
+                 <span style="font-size:16px; color:#0f172a; font-weight:900;">Total: ₹${o.grandTotal || o.total || 0}</span>
+              </div>
+              <button onclick="toggleOrderDetails(this)" 
+                      style="background:${autoExpand ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${autoExpand ? '#bbf7d0' : '#cbd5e1'}; color:#0b6e38; padding:6px 12px; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:6px; transition:all 0.25s ease;">
+                 <span class="toggle-label">${autoExpand ? 'Hide Details' : 'View Details & Track'}</span>
+                 <span class="arrow-icon" style="display:inline-block; transition:transform 0.35s cubic-bezier(0.4, 0, 0.2, 1); font-size:10px; transform:rotate(${autoExpand ? '180deg' : '0deg'});">▼</span>
+              </button>
+           </div>
+
+           <!-- Collapsible Details Container with Smooth 60fps Grid Transition -->
+           <div class="order-details-expand" style="display:grid; grid-template-rows:${autoExpand ? '1fr' : '0fr'}; transition:grid-template-rows 0.35s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease-in-out; opacity:${autoExpand ? '1' : '0'};">
+              <div style="overflow:hidden;">
+                 <div style="padding-top:12px; margin-top:12px; border-top:1px dashed #e2e8f0;">
+                    
+                    ${deliveryAddressDisplay ? `
+                    <!-- Delivery Address Box -->
+                    <div style="font-size:11px; color:#334155; background:#f8fafc; border:1px solid #e2e8f0; padding:8px 10px; border-radius:10px; margin-bottom:10px;">
+                       📍 <strong>Delivery Destination:</strong> ${deliveryAddressDisplay}
+                    </div>` : ''}
+
+                    <!-- Itemized Details -->
+                    <div style="background:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:10px;">
+                       <div style="font-size:10px; font-weight:800; color:#64748b; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.5px;">Itemized Breakdown:</div>
+                       ${itemsHtml || '<span style="font-size:11px; color:#888;">Standard Pickle Order</span>'}
+                    </div>
+
+                    <!-- Visual Timeline Tracker -->
+                    ${timelineHtml}
+
+                    <!-- Action Row: Invoice PDF, WhatsApp Share & Re-Order -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; flex-wrap:wrap; gap:8px; border-top:1px solid #f1f5f9; padding-top:10px;">
+                       <div style="display:flex; gap:6px;">
+                          <button onclick="window.generateOrderInvoicePDF('${encodeURIComponent(JSON.stringify(o))}', false)" 
+                                  style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; padding:7px 12px; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:all 0.2s;">
+                             📄 Tax Invoice PDF
+                          </button>
+                          <button onclick="window.sendWhatsAppInvoiceReceipt('${encodeURIComponent(JSON.stringify(o))}')" 
+                                  style="background:#25d366; color:white; border:none; padding:7px 12px; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,211,102,0.25);">
+                             📲 Share Receipt
+                          </button>
+                       </div>
+                       ${(o._kind === 'REGULAR' || !o._kind) ? `
+                       <button onclick="reorderPastOrder('${itemsJsonStr}')" 
+                               style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:7px 14px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(16,185,129,0.12);">
+                          🔁 Re-Order Items
+                       </button>` : `<span style="font-size:11px; color:#0369a1; font-weight:700; background:#e0f2fe; padding:4px 10px; border-radius:8px;">Special Booking Registered</span>`}
+                    </div>
+
+                 </div>
+              </div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Renders 4-step progress tracker for customer order status
+ */
+function renderOrderTrackerTimeline(status) {
+    const s = (status || "").toLowerCase();
+    let step = 1;
+    if (s.includes("shipped") || s.includes("dispatched") || s.includes("out for delivery")) step = 3;
+    else if (s.includes("delivered") || s.includes("completed")) step = 4;
+    else if (s.includes("processing") || s.includes("packed")) step = 2;
+
+    const steps = [
+      { num: 1, title: "Placed" },
+      { num: 2, title: "Packed" },
+      { num: 3, title: "Shipped" },
+      { num: 4, title: "Delivered" }
+    ];
+
+    let html = `<div style="margin:10px 0; padding:10px; background:#f8fafc; border-radius:12px; border:1px solid #e2e8f0;">
+      <div style="font-size:10px; font-weight:800; color:#64748b; margin-bottom:8px; text-transform:uppercase;">Order Status Tracker:</div>
+      <div style="display:flex; justify-content:space-between; align-items:center;">`;
+
+    steps.forEach((st, idx) => {
+        const isPassed = step >= st.num;
+        const isCurrent = step === st.num;
+
+        html += `
+          <div style="text-align:center; flex:1;">
+             <div style="width:22px; height:22px; border-radius:50%; background:${isPassed ? '#0b6e38' : '#cbd5e1'}; color:${isPassed ? 'white' : '#475569'}; margin:0 auto; font-size:10px; font-weight:900; display:flex; align-items:center; justify-content:center; ${isCurrent ? 'box-shadow:0 0 0 3px #dcfce7;' : ''}">
+                ${isPassed ? '✓' : st.num}
+             </div>
+             <div style="font-size:9px; font-weight:${isPassed ? '800' : '600'}; color:${isPassed ? '#0b6e38' : '#64748b'}; margin-top:3px;">${st.title}</div>
+          </div>`;
+
+        if (idx < steps.length - 1) {
+            const lineActive = step > st.num;
+            html += `<div style="flex:1; height:2px; background:${lineActive ? '#0b6e38' : '#cbd5e1'}; margin-top:-12px;"></div>`;
+        }
+    });
+
+    html += `</div></div>`;
+    return html;
+}
+
+window.reorderPastOrder = function(orderItemsJson) {
+    let items = [];
+    try {
+        items = typeof orderItemsJson === 'string' ? JSON.parse(orderItemsJson) : orderItemsJson;
+    } catch(e) {
+        items = [];
+    }
+
+    if (!items || !Array.isArray(items) || items.length === 0) {
+        alert("Unable to re-order items.");
+        return;
+    }
+
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Active:\nOnline cart additions are temporarily paused for maintenance by the Master Admin.");
+        return;
+    }
+
+    let addedCount = 0;
+    items.forEach(i => {
+        const itemObj = {
+            id: i.productId || i.id,
+            productId: i.productId || i.id,
+            name: i.name || i.productName,
+            price: Number(i.price || 0),
+            weight: i.weight || 'std',
+            qty: Number(i.qty || 1),
+            image: i.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500"
+        };
+        if (typeof addToCart === 'function') addToCart(itemObj, false);
+        addedCount++;
+    });
+
+    if (typeof showCart === 'function') showCart();
+    alert(`🔁 Successfully re-added ${addedCount} items to your shopping cart!`);
+};
+
+/**
+ * Toggles order details expansion with subtle animation
+ */
+window.toggleOrderDetails = function(btn) {
+    if (!btn) return;
+    const card = btn.closest('.order-card-container');
+    if (!card) return;
+    const expandDiv = card.querySelector('.order-details-expand');
+    const arrow = btn.querySelector('.arrow-icon');
+    const label = btn.querySelector('.toggle-label');
+    if (!expandDiv) return;
+
+    const isExpanded = expandDiv.style.gridTemplateRows === '1fr';
+    if (isExpanded) {
+        expandDiv.style.gridTemplateRows = '0fr';
+        expandDiv.style.opacity = '0';
+        if (arrow) arrow.style.transform = 'rotate(0deg)';
+        if (label) label.textContent = 'View Details & Track';
+        btn.style.background = '#f8fafc';
+        btn.style.borderColor = '#cbd5e1';
+    } else {
+        expandDiv.style.gridTemplateRows = '1fr';
+        expandDiv.style.opacity = '1';
+        if (arrow) arrow.style.transform = 'rotate(180deg)';
+        if (label) label.textContent = 'Hide Details';
+        btn.style.background = '#f0fdf4';
+        btn.style.borderColor = '#bbf7d0';
+    }
+};
+</script>

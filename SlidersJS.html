@@ -1,0 +1,314 @@
+<script>
+(function() {
+    window.adminSlidersList = window.adminSlidersList || [];
+
+    function openSlidersAdmin() {
+        if (typeof showScreen === 'function') {
+            showScreen("slidersAdminScreen");
+        }
+        loadAdminSliders();
+    }
+    window.openSlidersAdmin = openSlidersAdmin;
+
+    function loadAdminSliders() {
+        console.log("Loading Admin Sliders...");
+        
+        // 1. Instant Cache Render
+        try {
+            const cached = localStorage.getItem("app_sliders");
+            if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) {
+                    window.adminSlidersList = parsed;
+                    renderAdminSliders(window.adminSlidersList);
+                }
+            }
+        } catch(e) {}
+
+        // 2. Fetch Server Data
+        if (typeof server === 'function') {
+            server("getAllSliders").then(sliders => {
+                if (Array.isArray(sliders)) {
+                    window.adminSlidersList = sliders;
+                    renderAdminSliders(window.adminSlidersList);
+                    try { localStorage.setItem("app_sliders", JSON.stringify(window.adminSlidersList)); } catch(e) {}
+                }
+            }).catch(err => {
+                console.warn("Server call for getAllSliders returned error, using local data:", err);
+                if (!window.adminSlidersList || window.adminSlidersList.length === 0) {
+                    renderAdminSliders([]);
+                }
+            });
+        } else {
+            renderAdminSliders(window.adminSlidersList);
+        }
+    }
+    window.loadAdminSliders = loadAdminSliders;
+
+    function renderAdminSliders(sliders) {
+        const container = document.getElementById("adminSlidersList");
+        if (!container) return;
+
+        if (!sliders || sliders.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px 20px; background:white; border-radius:16px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0;">
+                    <p style="color:#888; font-weight:700; font-size:14px; margin-bottom:12px;">No hero sliders created yet.</p>
+                    <button onclick="openAddSliderModal()" class="primaryButton" style="width:auto; padding:9px 22px; font-weight:800;">➕ Add First Slider</button>
+                </div>`;
+            return;
+        }
+
+        let html = "";
+        sliders.forEach((s) => {
+            const isActive = s.active !== false;
+            const activeBadge = isActive 
+                ? `<span style="background:#d1fae5; color:#065f46; font-size:10px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-block;">ACTIVE</span>`
+                : `<span style="background:#fee2e2; color:#991b1b; font-size:10px; font-weight:800; padding:3px 9px; border-radius:12px; display:inline-block;">DISABLED</span>`;
+
+            const actionText = s.actionType === 'CATEGORY' ? `Category: ${s.actionValue || 'All'}`
+                : s.actionType === 'PREORDER' ? `Modal: Pre-Order Batch`
+                : s.actionType === 'BULK' ? `Modal: Bulk Order Form`
+                : s.actionType === 'SCREEN' ? `Screen: ${s.actionValue || 'Default'}`
+                : `Link: ${s.actionValue || '#'}`;
+
+            const img = s.imageUrl || 'https://via.placeholder.com/600x300?text=AaharShree+Banner';
+
+            html += `
+            <div style="background:white; border-radius:16px; padding:15px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); display:flex; flex-direction:column; gap:12px; border:1px solid #f0f0f0;">
+                <div style="display:flex; gap:14px; align-items:center;">
+                    <div style="width:95px; height:68px; border-radius:10px; overflow:hidden; background:#f8fafc; flex-shrink:0; border:1px solid #e2e8f0;">
+                        <img src="${img}" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://via.placeholder.com/600x300?text=Banner'">
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:4px; gap:8px;">
+                            <h4 style="font-size:14px; font-weight:800; color:#1e293b; margin:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${s.title || 'Untitled Banner'}</h4>
+                            ${activeBadge}
+                        </div>
+                        <div style="font-size:11px; color:#0b6e38; font-weight:700; margin-bottom:3px;">${s.badge || s.subtitle || 'Home Carousel Banner'}</div>
+                        <div style="font-size:10px; color:#64748b;">🔗 Action: <strong>${actionText}</strong></div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:10px; margin-top:2px;">
+                    <button onclick="toggleSliderActiveAdmin('${s.id}')" style="background:${isActive ? '#f3f4f6' : '#ecfdf5'}; color:${isActive ? '#4b5563' : '#047857'}; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                        ${isActive ? '⏸ Disable' : '▶ Enable'}
+                    </button>
+
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="editSliderAdmin('${s.id}')" style="background:#eef2ff; color:#3730a3; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Edit</button>
+                        <button onclick="deleteSliderAdmin('${s.id}')" style="background:#fef2f2; color:#991b1b; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">🗑️ Delete</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+
+        container.innerHTML = html;
+    }
+    window.renderAdminSliders = renderAdminSliders;
+
+    function openAddSliderModal() {
+        try {
+            const idEl = document.getElementById("sliderFormId");
+            if (idEl) idEl.value = "";
+
+            const titleEl = document.getElementById("sliderTitle");
+            if (titleEl) titleEl.value = "";
+
+            const badgeEl = document.getElementById("sliderBadge");
+            if (badgeEl) badgeEl.value = "";
+
+            const subEl = document.getElementById("sliderSubtitle");
+            if (subEl) subEl.value = "";
+
+            const imgEl = document.getElementById("sliderImageUrl");
+            if (imgEl) imgEl.value = "";
+
+            const actEl = document.getElementById("sliderActionType");
+            if (actEl) actEl.value = "CATEGORY";
+
+            const chkEl = document.getElementById("sliderActive");
+            if (chkEl) chkEl.checked = true;
+
+            const modalTitleEl = document.getElementById("sliderModalTitle");
+            if (modalTitleEl) modalTitleEl.innerText = "Add New Hero Slider";
+
+            updateActionValueOptions("Mango Pickles");
+
+            const prevBox = document.getElementById("sliderImgPreviewBox");
+            if (prevBox) prevBox.innerHTML = `<span style="color:#888; font-size:11px; font-weight:700;">Image Preview</span>`;
+
+        } catch(err) {
+            console.warn("Notice in openAddSliderModal form reset:", err);
+        }
+
+        const modal = document.getElementById("sliderModal");
+        if (modal) modal.style.display = "flex";
+    }
+    window.openAddSliderModal = openAddSliderModal;
+    window.openSliderModal = openAddSliderModal;
+
+    function closeSliderModal() {
+        const modal = document.getElementById("sliderModal");
+        if (modal) modal.style.display = "none";
+    }
+    window.closeSliderModal = closeSliderModal;
+
+    function updateActionValueOptions(defaultValue) {
+        const actionTypeEl = document.getElementById("sliderActionType");
+        const container = document.getElementById("sliderActionValueContainer");
+        const label = document.getElementById("sliderActionValueLabel");
+        if (!actionTypeEl || !container) return;
+
+        const val = actionTypeEl.value;
+        const currentVal = defaultValue !== undefined ? defaultValue : (document.getElementById("sliderActionValue")?.value || "");
+
+        if (label) {
+            label.innerText = val === 'CATEGORY' ? 'Select Target Category' :
+                              val === 'SCREEN' ? 'Target Screen Name' :
+                              val === 'URL' ? 'External Web URL' : 'Target Module';
+        }
+
+        if (val === 'CATEGORY') {
+            let optionsHtml = `<option value="ALL">All Categories</option>`;
+            if (window.adminCategoriesList && Array.isArray(window.adminCategoriesList)) {
+                window.adminCategoriesList.forEach(c => {
+                    const sel = (c.name === currentVal || c.id === currentVal) ? 'selected' : '';
+                    optionsHtml += `<option value="${c.name}" ${sel}>${c.name}</option>`;
+                });
+            } else {
+                optionsHtml += `<option value="Mango Pickles" ${currentVal === 'Mango Pickles' ? 'selected' : ''}>Mango Pickles</option>`;
+                optionsHtml += `<option value="Lemon Pickles" ${currentVal === 'Lemon Pickles' ? 'selected' : ''}>Lemon Pickles</option>`;
+                optionsHtml += `<option value="Chilli Pickles" ${currentVal === 'Chilli Pickles' ? 'selected' : ''}>Chilli Pickles</option>`;
+            }
+            container.innerHTML = `<select id="sliderActionValue" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px; font-weight:700;">${optionsHtml}</select>`;
+        } else if (val === 'PREORDER') {
+            container.innerHTML = `<input type="text" id="sliderActionValue" value="preorder" readonly style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px; background:#f1f5f9; font-weight:700; color:#3730a3;">`;
+        } else if (val === 'BULK') {
+            container.innerHTML = `<input type="text" id="sliderActionValue" value="bulk" readonly style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px; background:#f1f5f9; font-weight:700; color:#3730a3;">`;
+        } else {
+            container.innerHTML = `<input type="text" id="sliderActionValue" value="${currentVal}" placeholder="${val === 'URL' ? 'https://...' : 'e.g. productsScreen'}" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px;">`;
+        }
+    }
+    window.updateActionValueOptions = updateActionValueOptions;
+
+    function previewSliderImg(url) {
+        const urlInput = document.getElementById("sliderImageUrl");
+        if (urlInput && urlInput.value !== url) urlInput.value = url;
+
+        const prevBox = document.getElementById("sliderImgPreviewBox");
+        if (!prevBox) return;
+
+        if (!url) {
+            prevBox.innerHTML = `<span style="color:#888; font-size:11px; font-weight:700;">Image Preview</span>`;
+            return;
+        }
+
+        prevBox.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentNode.innerHTML='<span style=\\'color:#ef4444; font-size:11px; font-weight:700;\\'>⚠️ Invalid Image URL</span>'">`;
+    }
+    window.previewSliderImg = previewSliderImg;
+
+    function handleSliderFileUpload(input) {
+        if (!input || !input.files || !input.files[0]) return;
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            previewSliderImg(dataUrl);
+        };
+        reader.readAsDataURL(file);
+    }
+    window.handleSliderFileUpload = handleSliderFileUpload;
+
+    function clearBannerPresetsHistory() {
+        const container = document.getElementById("quickBannerPresetsContainer");
+        if (container) container.innerHTML = `<span style="font-size:10px; color:#888;">Cleared.</span>`;
+    }
+    window.clearBannerPresetsHistory = clearBannerPresetsHistory;
+
+    function editSliderAdmin(id) {
+        const item = window.adminSlidersList.find(s => String(s.id) === String(id));
+        if (!item) return;
+
+        document.getElementById("sliderFormId").value = item.id;
+        document.getElementById("sliderTitle").value = item.title || "";
+        document.getElementById("sliderBadge").value = item.badge || "";
+        document.getElementById("sliderSubtitle").value = item.subtitle || "";
+        document.getElementById("sliderImageUrl").value = item.imageUrl || "";
+        document.getElementById("sliderActionType").value = item.actionType || "CATEGORY";
+        document.getElementById("sliderActive").checked = item.active !== false;
+
+        document.getElementById("sliderModalTitle").innerText = "Edit Hero Slider";
+        updateActionValueOptions(item.actionValue || "");
+        previewSliderImg(item.imageUrl || "");
+
+        const modal = document.getElementById("sliderModal");
+        if (modal) modal.style.display = "flex";
+    }
+    window.editSliderAdmin = editSliderAdmin;
+
+    function saveSliderAdmin() {
+        const id = document.getElementById("sliderFormId").value || ("SLD" + Date.now());
+        const title = document.getElementById("sliderTitle").value.trim() || "Promotional Banner";
+        const badge = document.getElementById("sliderBadge").value.trim();
+        const subtitle = document.getElementById("sliderSubtitle").value.trim();
+        const imageUrl = document.getElementById("sliderImageUrl").value.trim() || "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80";
+        const actionType = document.getElementById("sliderActionType").value;
+        const actionValue = document.getElementById("sliderActionValue") ? document.getElementById("sliderActionValue").value : "";
+        const active = document.getElementById("sliderActive").checked;
+
+        const payload = { id, title, badge, subtitle, imageUrl, actionType, actionValue, active };
+
+        // 1. Local update
+        const idx = window.adminSlidersList.findIndex(s => String(s.id) === String(id));
+        if (idx !== -1) window.adminSlidersList[idx] = payload;
+        else window.adminSlidersList.unshift(payload);
+
+        renderAdminSliders(window.adminSlidersList);
+        try { localStorage.setItem("app_sliders", JSON.stringify(window.adminSlidersList)); } catch(e) {}
+        closeSliderModal();
+
+        // 2. Async server save
+        if (typeof server === 'function') {
+            server("saveSlider", payload).then(res => {
+                console.log("Slider saved on server:", res);
+                loadAdminSliders();
+            }).catch(err => {
+                console.warn("Notice: Server save fallback for slider:", err);
+            });
+        }
+    }
+    window.saveSliderAdmin = saveSliderAdmin;
+
+    function toggleSliderActiveAdmin(id) {
+        const item = window.adminSlidersList.find(s => String(s.id) === String(id));
+        if (!item) return;
+
+        item.active = !item.active;
+        renderAdminSliders(window.adminSlidersList);
+        try { localStorage.setItem("app_sliders", JSON.stringify(window.adminSlidersList)); } catch(e) {}
+
+        if (typeof server === 'function') {
+            server("toggleSliderActive", { id: item.id }).catch(err => console.warn("Toggle slider active error:", err));
+        }
+    }
+    window.toggleSliderActiveAdmin = toggleSliderActiveAdmin;
+
+    function deleteSliderAdmin(id) {
+        if (!confirm("Are you sure you want to delete this hero slider banner?")) return;
+
+        window.adminSlidersList = window.adminSlidersList.filter(s => String(s.id) !== String(id));
+        renderAdminSliders(window.adminSlidersList);
+        try { localStorage.setItem("app_sliders", JSON.stringify(window.adminSlidersList)); } catch(e) {}
+
+        if (typeof server === 'function') {
+            server("deleteSlider", id).then(res => {
+                console.log("Slider deleted on server:", res);
+            }).catch(err => {
+                console.warn("Delete slider server fallback:", err);
+            });
+        }
+    }
+    window.deleteSliderAdmin = deleteSliderAdmin;
+
+})();
+</script>

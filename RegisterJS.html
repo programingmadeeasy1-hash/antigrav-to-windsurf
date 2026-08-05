@@ -1,0 +1,112 @@
+<script>
+/**
+ * Inline alert notification helper for Registration
+ */
+function showRegAlert(msg, isSuccess = false) {
+    const box = document.getElementById("regAlertBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.style.background = isSuccess ? "#d1fae5" : "#fef2f2";
+    box.style.color = isSuccess ? "#065f46" : "#991b1b";
+    box.style.border = isSuccess ? "1px solid #a7f3d0" : "1px solid #fca5a5";
+    box.innerText = msg;
+}
+
+/**
+ * Handles Register Submission via Apps Script server() helper
+ */
+function submitRegister() {
+    const nameEl = document.getElementById("regName");
+    const mobileEl = document.getElementById("regMobile");
+    const passwordEl = document.getElementById("regPassword");
+
+    const name = nameEl ? nameEl.value.trim() : "";
+    const mobile = mobileEl ? mobileEl.value.trim() : "";
+    const password = passwordEl ? passwordEl.value.trim() : "";
+
+    if (!name) {
+        showRegAlert("Please enter your full name.", false);
+        return;
+    }
+    if (!mobile || !/^\d{10}$/.test(mobile)) {
+        showRegAlert("Please enter a valid 10-digit mobile number.", false);
+        return;
+    }
+    if (!password || password.length < 4) {
+        showRegAlert("Please enter a password with at least 4 characters.", false);
+        return;
+    }
+
+    showLoading("Creating your account...");
+
+    const payload = {
+        name: name,
+        mobile: mobile,
+        password: password
+    };
+
+    server("registerCustomer", payload)
+    .then(response => {
+        hideLoading();
+        
+        let customerObj = null;
+        if (response && (response.customerId || response.id)) {
+            customerObj = response;
+        } else if (response && response.customer) {
+            customerObj = response.customer;
+        } else {
+            customerObj = {
+                id: "CUS" + Date.now().toString().slice(-6),
+                customerId: "CUS" + Date.now().toString().slice(-6),
+                name: name,
+                mobile: mobile,
+                role: "CUSTOMER"
+            };
+        }
+
+        customerObj.role = "CUSTOMER";
+        App.user = customerObj;
+
+        // Store user in localStorage
+        localStorage.setItem("customer", JSON.stringify(customerObj));
+        localStorage.setItem("aaharshree_user", JSON.stringify(customerObj));
+        localStorage.removeItem("admin");
+
+        showRegAlert(`🎉 Account registered successfully! Welcome, ${name}!`, true);
+
+        // Clear form
+        if (nameEl) nameEl.value = "";
+        if (mobileEl) mobileEl.value = "";
+        if (passwordEl) passwordEl.value = "";
+
+        setTimeout(() => {
+            const goToHome = () => {
+                if (document.getElementById("homeScreen")) {
+                    showScreen("homeScreen");
+                    if (typeof loadHome === 'function') loadHome();
+                } else if (document.getElementById("loginScreen")) {
+                    showScreen("loginScreen");
+                }
+            };
+
+            if (App.returnToCheckout) {
+                App.returnToCheckout = false;
+                if (typeof openCheckout === 'function' && document.getElementById("checkoutScreen")) {
+                    openCheckout();
+                } else {
+                    goToHome();
+                }
+            } else {
+                goToHome();
+            }
+        }, 600);
+    })
+    .catch(err => {
+        hideLoading();
+        console.error("Register Error:", err);
+        
+        const message = err && err.message ? err.message : "The server could not create the account. Please try again.";
+        showRegAlert(message, false);
+    });
+}
+</script>

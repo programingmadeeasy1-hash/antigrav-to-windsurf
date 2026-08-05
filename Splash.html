@@ -1,0 +1,72 @@
+<div id="splashScreen" class="splash-container screen active" style="position:fixed; top:0; left:0; width:100vw; height:100vh; background:#0b6e38; z-index:999999; display:flex; flex-direction:column; align-items:center; justify-content:center; color:white; transition:opacity 0.3s ease;">
+  <div style="width: 120px; height: 120px; background: white; border-radius: 28px; display: flex; align-items: center; justify-content: center; box-shadow: 0 10px 30px rgba(0,0,0,0.3); margin-bottom: 20px;">
+    <img src="https://drive.google.com/thumbnail?id=1ZRMpfRzJhazXMa25j0pVEWGrMNXJ0SAG&sz=w500" 
+         alt="AaharShree Logo" style="width: 85%; height: 85%; object-fit: contain;">
+  </div>
+  <h1 style="color: white; font-size: 26px; font-weight: 900; margin: 0; letter-spacing: 0.02em;">AaharShree</h1>
+  <p style="color: rgba(255,255,255,0.85); font-size: 13px; margin-top: 6px; font-weight: 600;">Handmade with Love • Packed with Purity</p>
+  <div style="width: 180px; height: 4px; background: rgba(255,255,255,0.25); border-radius: 10px; margin-top: 28px; overflow: hidden;">
+    <div id="splashProgressFill" style="width: 0%; height: 100%; background: #ffffff; transition: width 0.8s linear;"></div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var isDestroyed = false;
+
+  function destroySplashAndEnter() {
+    if (isDestroyed) return;
+    isDestroyed = true;
+
+    var splash = document.getElementById("splashScreen");
+    var targetScreen = "loginScreen";
+
+    try {
+      var userStr = localStorage.getItem("aaharshree_user");
+      if (userStr) {
+        var u = JSON.parse(userStr);
+        if (u && (u.role === "ADMIN" || u.role === "TIER1_MASTER" || u.role === "TIER2_MANAGER")) {
+          targetScreen = "dashboardScreen";
+        } else if (u && u.mobile) {
+          targetScreen = "homeScreen";
+        }
+      }
+    } catch(e) {}
+
+    // Animate opacity fade out
+    if (splash) {
+      splash.style.opacity = "0";
+      splash.style.pointerEvents = "none";
+    }
+
+    // After 300ms transition, remove element from DOM permanently
+    setTimeout(function() {
+      if (splash && splash.parentNode) {
+        splash.parentNode.removeChild(splash);
+      }
+
+      if (typeof window.showScreen === 'function') {
+        window.showScreen(targetScreen);
+      } else {
+        var targetEl = document.getElementById(targetScreen) || document.getElementById('loginScreen');
+        if (targetEl) {
+          targetEl.classList.add('active');
+          targetEl.style.display = 'block';
+        }
+      }
+    }, 300);
+  }
+
+  // Animate progress bar fill in 800ms
+  setTimeout(function() {
+    var fill = document.getElementById("splashProgressFill");
+    if (fill) fill.style.width = "100%";
+  }, 50);
+
+  // Trigger dismissal after 1.0 seconds
+  setTimeout(destroySplashAndEnter, 1000);
+
+  // Absolute safety backup at 2.0 seconds
+  setTimeout(destroySplashAndEnter, 2000);
+})();
+</script>

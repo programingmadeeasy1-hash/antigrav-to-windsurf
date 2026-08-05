@@ -1,0 +1,226 @@
+<div id="adminProfileScreen" class="screen">
+  <!-- PREMIUM ADMIN HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button onclick="showScreen('dashboardScreen'); loadDashboard();" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div>
+        <div class="brand-name" style="color: white; font-size:16px;">Admin Profile & Roles</div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.85);">Manage Admin Hierarchy & Staff Permissions</div>
+      </div>
+    </div>
+    <span style="font-size:11px; font-weight:800; background:rgba(255,255,255,0.2); padding:4px 10px; border-radius:12px; color:white;">Tier 1 Master</span>
+  </header>
+
+  <div style="padding:15px; padding-bottom:120px; max-width:650px; margin:0 auto;">
+
+    <!-- LOGGED IN ADMIN CARD -->
+    <div style="background:linear-gradient(135deg, #0b6e38 0%, #15803d 100%); color:white; border-radius:20px; padding:20px; box-shadow:var(--shadow); margin-bottom:16px; position:relative; overflow:hidden;">
+      <div style="position:absolute; right:-15px; top:-15px; font-size:100px; opacity:0.1; pointer-events:none;">👑</div>
+      <div style="display:flex; align-items:center; gap:14px; margin-bottom:14px;">
+        <div style="width:60px; height:60px; background:rgba(255,255,255,0.2); border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:30px; border:2px solid rgba(255,255,255,0.5); shrink:0;">
+          👑
+        </div>
+        <div>
+          <h2 id="adminProfName" style="font-size:18px; font-weight:900; margin:0;">AaharShree Master Admin</h2>
+          <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
+            <span style="background:#fef08a; color:#854d0e; font-weight:800; font-size:10px; padding:2px 8px; border-radius:10px;">Tier 1: Master Owner</span>
+            <span id="adminProfBranch" style="font-size:11px; opacity:0.9;">Central HQ - Pune</span>
+          </div>
+        </div>
+      </div>
+
+      <div style="background:rgba(0,0,0,0.15); border-radius:12px; padding:12px; font-size:12px; line-height:1.5; border:1px solid rgba(255,255,255,0.2);">
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span style="opacity:0.8;">Contact Mobile:</span>
+          <strong id="adminProfMobile">+91 9876543210</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+          <span style="opacity:0.8;">Email Address:</span>
+          <strong id="adminProfEmail">admin@aaharshree.com</strong>
+        </div>
+        <div style="display:flex; justify-content:space-between;">
+          <span style="opacity:0.8;">System Privilege Level:</span>
+          <strong style="color:#bbf7d0;">Full Master Control (Unrestricted)</strong>
+        </div>
+      </div>
+    </div>
+
+    <!-- ADMIN ROLE HIERARCHY EXPLANATION -->
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); margin-bottom:16px; border:1px solid #f0f0f0;">
+      <h3 style="font-size:14px; font-weight:800; color:#111827; margin-bottom:12px; display:flex; align-items:center; gap:6px;">
+        <span>🛡️</span> Admin Hierarchy & Role Bifurcation
+      </h3>
+      <p style="font-size:11px; color:#64748b; margin-bottom:12px; line-height:1.4;">
+        Bifurcate duties between higher-tier management and store operational staff to maintain accountability and security:
+      </p>
+
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        
+        <!-- TIER 1 -->
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:12px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <strong style="font-size:13px; color:#166534; display:flex; align-items:center; gap:6px;">👑 Tier 1: Master / Owner Admin</strong>
+            <span style="font-size:10px; font-weight:800; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:8px;">Highest Authority</span>
+          </div>
+          <p style="font-size:11px; color:#166534; margin:0; line-height:1.4;">
+            <strong>Rights:</strong> Full system access, revenue analytics, pricing & discount controls, admin staff creation & role assignment, 🚨 <strong>Exclusive Master System Shutdown Toggle</strong>, data resets, and store settings.
+          </p>
+        </div>
+
+        <!-- TIER 2 -->
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <strong style="font-size:13px; color:#1e40af; display:flex; align-items:center; gap:6px;">🛡️ Tier 2: Operations / Branch Manager</strong>
+            <span style="font-size:10px; font-weight:800; background:#dbeafe; color:#1e40af; padding:2px 8px; border-radius:8px;">Store Management</span>
+          </div>
+          <p style="font-size:11px; color:#1e40af; margin:0; line-height:1.4;">
+            <strong>Rights:</strong> Product & category catalog editing, order status management, sun-aging batch pre-orders & bulk quote approvals, inventory adjustments.
+          </p>
+        </div>
+
+        <!-- TIER 3 -->
+        <div style="background:#fefce8; border:1px solid #fef08a; border-radius:12px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <strong style="font-size:13px; color:#854d0e; display:flex; align-items:center; gap:6px;">🚚 Tier 3: Packing & Dispatch Staff</strong>
+            <span style="font-size:10px; font-weight:800; background:#fef9c3; color:#a16207; padding:2px 8px; border-radius:8px;">Fulfillment Team</span>
+          </div>
+          <p style="font-size:11px; color:#854d0e; margin:0; line-height:1.4;">
+            <strong>Rights:</strong> View daily order dispatch lists, update tracking & delivery status, check inventory stock. (Read-only for business settings & pricing).
+          </p>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- ADMIN STAFF TEAM DIRECTORY -->
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); border:1px solid #f0f0f0;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <div>
+          <h3 style="font-size:14px; font-weight:800; color:#111827; margin:0;">👥 Admin Staff & Sub-Admins (<span id="adminStaffCount">0</span>)</h3>
+          <p style="font-size:10px; color:#64748b; margin-top:2px;">Subordinate admins & operational team members</p>
+        </div>
+        <button onclick="openAddAdminStaffModal()" style="background:var(--primary); color:white; border:none; padding:8px 12px; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
+          + Add Staff
+        </button>
+      </div>
+
+      <div id="adminStaffList" style="display:flex; flex-direction:column; gap:10px;">
+        <p style="text-align:center; padding:20px; color:#94a3b8; font-size:12px;">Loading admin team directory...</p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADD / EDIT ADMIN STAFF MODAL -->
+<div id="adminStaffModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; padding:15px;">
+  <div style="background:white; border-radius:20px; width:100%; max-width:450px; padding:20px; box-shadow:0 10px 25px rgba(0,0,0,0.2); position:relative; max-height:90vh; overflow-y:auto;">
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:10px;">
+      <h3 id="adminStaffModalTitle" style="font-size:16px; font-weight:900; color:#111827; margin:0;">Add New Admin Staff</h3>
+      <button onclick="closeAdminStaffModal()" style="background:none; border:none; font-size:20px; color:#64748b; cursor:pointer;">✕</button>
+    </div>
+
+    <form id="adminStaffForm" onsubmit="event.preventDefault(); saveAdminStaffSubmit();">
+      <input type="hidden" id="staffEditId" value="">
+
+      <!-- ADMIN USER ID & PRESET PASSWORD FIELDS -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Admin User ID*</label>
+          <input type="text" id="staffAdminId" required placeholder="e.g. ADM102" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px; font-weight:800; color:#1e293b;">
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Preset Password*</label>
+          <div style="position:relative; display:flex; align-items:center;">
+            <input type="password" id="staffPassword" required placeholder="Set Password" style="width:100%; padding:10px; padding-right:36px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+            <button type="button" onclick="togglePasswordVisibility('staffPassword', this)" style="position:absolute; right:8px; background:none; border:none; cursor:pointer; font-size:14px;">👁️</button>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:10px;">
+        <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Staff Full Name*</label>
+        <input type="text" id="staffName" required placeholder="e.g. Ramesh Kulkarni" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+      </div>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+        <div>
+          <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Mobile Number*</label>
+          <input type="text" id="staffMobile" required placeholder="10-digit mobile" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+        </div>
+        <div>
+          <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Email Address</label>
+          <input type="email" id="staffEmail" placeholder="staff@aaharshree.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:6px;">Select Level of Authority & System Role*</label>
+        
+        <!-- VISUAL AUTHORITY CARDS GRID -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:10px;">
+          <div id="card_TIER1_MASTER" onclick="selectAuthorityTier('TIER1_MASTER')" style="border:1.5px solid #cbd5e1; border-radius:10px; padding:8px 10px; cursor:pointer; background:white; transition:all 0.15s ease;">
+            <div style="font-size:12px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px;">👑 Level 1</div>
+            <div style="font-size:10px; font-weight:700; color:#0b6e38;">Master Owner</div>
+            <div style="font-size:9px; color:#64748b; margin-top:2px; line-height:1.2;">Full System & Finance Access</div>
+          </div>
+          
+          <div id="card_TIER2_MANAGER" onclick="selectAuthorityTier('TIER2_MANAGER')" style="border:1.5px solid #cbd5e1; border-radius:10px; padding:8px 10px; cursor:pointer; background:white; transition:all 0.15s ease;">
+            <div style="font-size:12px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px;">🛡️ Level 2</div>
+            <div style="font-size:10px; font-weight:700; color:#1d4ed8;">Operations Mgr</div>
+            <div style="font-size:9px; color:#64748b; margin-top:2px; line-height:1.2;">Catalog & Order Dispatch</div>
+          </div>
+
+          <div id="card_TIER3_LOGISTICS" onclick="selectAuthorityTier('TIER3_LOGISTICS')" style="border:1.5px solid #cbd5e1; border-radius:10px; padding:8px 10px; cursor:pointer; background:white; transition:all 0.15s ease;">
+            <div style="font-size:12px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px;">🚚 Level 3</div>
+            <div style="font-size:10px; font-weight:700; color:#b45309;">Logistics Lead</div>
+            <div style="font-size:9px; color:#64748b; margin-top:2px; line-height:1.2;">Stock & Delivery Tracking</div>
+          </div>
+
+          <div id="card_TIER4_SUPPORT" onclick="selectAuthorityTier('TIER4_SUPPORT')" style="border:1.5px solid #cbd5e1; border-radius:10px; padding:8px 10px; cursor:pointer; background:white; transition:all 0.15s ease;">
+            <div style="font-size:12px; font-weight:800; color:#1e293b; display:flex; align-items:center; gap:4px;">🎧 Level 4</div>
+            <div style="font-size:10px; font-weight:700; color:#7e22ce;">Support Lead</div>
+            <div style="font-size:9px; color:#64748b; margin-top:2px; line-height:1.2;">Orders & Customer Support</div>
+          </div>
+        </div>
+
+        <select id="staffTier" onchange="updateAuthorityPermissionsPreview()" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px; font-weight:700; color:#0f172a; background-color:#ffffff; cursor:pointer;">
+          <option value="TIER1_MASTER">👑 Level 1: Master Owner / Director (Full Unrestricted System Access)</option>
+          <option value="TIER2_MANAGER" selected>🛡️ Level 2: Operations / Branch Manager (Store & Catalog Ops)</option>
+          <option value="TIER3_LOGISTICS">🚚 Level 3: Inventory & Logistics Lead (Stock & Dispatch Ops)</option>
+          <option value="TIER3_STAFF">🚚 Level 3: Inventory & Logistics Lead (Legacy)</option>
+          <option value="TIER4_SUPPORT">🎧 Level 4: Customer Support & Order Operator (Orders & Helpdesk)</option>
+        </select>
+      </div>
+
+      <!-- LEVEL OF AUTHORITY PERMISSIONS PREVIEW BOX -->
+      <div id="authorityPermissionsBox" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px; margin-bottom:10px;">
+        <div style="font-size:11px; font-weight:800; color:#334155; margin-bottom:6px; display:flex; align-items:center; gap:4px;">
+          <span>🔑</span> Scope of Authority & Privileges Granted:
+        </div>
+        <div id="authorityPermissionsList" style="font-size:11px; color:#475569; display:grid; grid-template-columns:1fr 1fr; gap:4px; line-height:1.4;">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Branch / Kitchen Unit</label>
+        <input type="text" id="staffBranch" placeholder="e.g. Pune Central Kitchen / Logistics Hub" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+      </div>
+
+      <!-- SEND EMAIL NOTIFICATION CHECKBOX -->
+      <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px; margin-bottom:14px; display:flex; align-items:center; gap:8px;">
+        <input type="checkbox" id="staffSendEmail" checked style="width:16px; height:16px; accent-color:#0b6e38; cursor:pointer;">
+        <label for="staffSendEmail" style="font-size:11px; font-weight:700; color:#166534; cursor:pointer;">
+          ✉️ Send official appointment email notification to staff email address
+        </label>
+      </div>
+
+      <div style="display:flex; gap:10px;">
+        <button type="button" onclick="closeAdminStaffModal()" style="flex:1; padding:12px; border-radius:10px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-weight:700; cursor:pointer;">Cancel</button>
+        <button type="submit" class="primaryButton" style="flex:1; padding:12px; border-radius:10px; font-weight:800; cursor:pointer;">💾 Appoint Admin Staff</button>
+      </div>
+    </form>
+  </div>
+</div>

@@ -1,0 +1,65 @@
+<div id="loginScreen" class="screen active">
+  
+  <!-- BRAND HEADER BANNER -->
+  <div class="auth-brand-header">
+    <div style="display:flex; justify-content:center; align-items:center; margin-bottom:12px;">
+      <span style="font-size:11px; font-weight:800; background:rgba(255,255,255,0.25); padding:4px 14px; border-radius:12px;">Welcome to AaharShree</span>
+    </div>
+
+    <div class="auth-logo-badge">
+      <img src="https://drive.google.com/thumbnail?id=1ZRMpfRzJhazXMa25j0pVEWGrMNXJ0SAG&sz=w300" alt="AaharShree Logo">
+    </div>
+    <h2 style="font-size:22px; font-weight:900; margin-bottom:2px; letter-spacing:-0.3px;">AaharShree Naturals</h2>
+    <p style="font-size:12px; opacity:0.9; font-weight:500;">Authentic Homemade Pickles & Delicacies</p>
+  </div>
+
+  <div style="padding: 24px 15px 80px 15px; max-width: 420px; margin: 0 auto;">
+
+    <!-- CARD FORM WRAPPER -->
+    <div class="auth-form-card">
+
+      <h3 style="font-size:18px; font-weight:900; color:#1e293b; text-align:center; margin-bottom:4px;">Sign In to Account</h3>
+      <p style="font-size:12px; color:#64748b; text-align:center; margin-bottom:20px;">Enter your credentials to continue</p>
+
+      <!-- INLINE ALERT NOTIFICATION -->
+      <div id="loginAlertBox" style="display:none; padding:12px; border-radius:12px; font-size:12px; font-weight:700; margin-bottom:15px; text-align:center;"></div>
+
+      <form id="loginForm" onsubmit="event.preventDefault(); submitLogin();">
+
+        <!-- MOBILE / IDENTIFIER FIELD -->
+        <div class="input-group">
+          <label for="loginIdentifier">Mobile Number</label>
+          <div class="input-field-wrapper">
+            <span class="input-icon">📱</span>
+            <input type="text" id="loginIdentifier" placeholder="Enter 10-digit mobile number" required class="custom-auth-input">
+          </div>
+        </div>
+
+        <!-- PASSWORD FIELD -->
+        <div class="input-group" style="margin-bottom:22px;">
+          <label for="loginPassword">Password</label>
+          <div class="input-field-wrapper">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="loginPassword" placeholder="Enter password" required class="custom-auth-input">
+            <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('loginPassword', this)">👁️</button>
+          </div>
+        </div>
+
+        <!-- SUBMIT BUTTON -->
+        <button type="submit" id="loginSubmitBtn" class="primaryButton" style="padding:15px; font-size:15px; border-radius:14px; box-shadow:0 4px 14px rgba(11,110,56,0.3);">
+          Sign In →
+        </button>
+      </form>
+
+      <!-- SWITCH TO REGISTER SCREEN -->
+      <div id="registerLinkBox" style="text-align: center; margin-top: 18px; padding-top:12px; border-top:1px solid #f1f5f9;">
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          New to AaharShree Naturals? 
+          <a href="javascript:void(0)" onclick="event.preventDefault(); showScreen('registerScreen');" style="color: var(--primary-dark); font-weight: 800; text-decoration: underline;">Create Account</a>
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+</div>

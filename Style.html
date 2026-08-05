@@ -1,0 +1,837 @@
+<style>
+:root {
+  --primary: #148f42;
+  --primary-dark: #0b6e38;
+  --gradient: linear-gradient(135deg, #148f42 0%, #0b6e38 100%);
+  --bg: #f8faf8;
+  --shadow: 0 4px 15px rgba(0,0,0,0.06);
+  --muted: #666;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+
+body { background-color: var(--bg); color: #222; }
+
+.screen { display: none !important; width: 100%; min-height: 100vh; }
+.screen.active { display: block !important; }
+.screen.active.flex-screen { display: flex !important; }
+
+/* SPLASH SCREEN STYLES (Matching Image 2) */
+.splash-container {
+  background: #0b6e38;
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  color: white;
+  text-align: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 99999;
+  transition: opacity 0.4s ease, visibility 0.4s ease;
+}
+
+.splash-container.splash-fade-out {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+  display: none !important;
+}
+
+.splash-logo-card {
+  width: 110px;
+  height: 110px;
+  background: #ffffff;
+  border-radius: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.22);
+  margin-bottom: 20px;
+  padding: 10px;
+}
+
+.splash-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 18px;
+}
+
+.splash-brand-title {
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  margin-bottom: 4px;
+}
+
+.splash-brand-subtitle {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.88);
+  font-weight: 500;
+}
+
+.splash-progress-track {
+  width: 130px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.22);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.splash-progress-fill {
+  width: 0%;
+  height: 100%;
+  background: #ffffff;
+  border-radius: 10px;
+}
+
+/* MAIN HEADER (Matching Image 1) */
+.home-main-header {
+  background: #0b6e38;
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+}
+
+.header-logo-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: #000;
+  border: 2px solid #eab308;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.header-logo-circle img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.home-user-greeting {
+  font-size: 18px;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+  line-height: 1.2;
+}
+
+.home-user-tagline {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+}
+
+.header-icon-circle-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  transition: transform 0.2s;
+}
+
+.header-icon-circle-btn:active { transform: scale(0.95); }
+
+.header-cart-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  background: #ef4444;
+  color: white;
+  font-size: 10px;
+  font-weight: 800;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+}
+
+/* SEARCH BAR */
+.home-search-wrapper {
+  background: white;
+  border-radius: 16px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.03);
+  margin-bottom: 20px;
+  border: 1.5px solid #e2e8f0;
+  transition: all 0.2s ease-in-out;
+}
+
+.home-search-wrapper:focus-within {
+  border-color: #0b6e38;
+  box-shadow: 0 4px 16px rgba(11, 110, 56, 0.12);
+}
+
+.home-search-wrapper input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1e293b;
+  background: transparent;
+}
+
+/* HERO CONTAINER & SPLIT LAYOUT */
+.home-hero-container {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 22px;
+}
+
+@media (max-width: 680px) {
+  .home-hero-container {
+    flex-direction: column;
+    gap: 15px;
+  }
+}
+
+.hero-text-col {
+  flex: 1;
+  min-width: 200px;
+}
+
+.hero-huge-title {
+  font-size: 42px;
+  font-weight: 900;
+  line-height: 1;
+  color: #111827;
+  letter-spacing: -1px;
+}
+
+.hero-sub-huge-title {
+  font-size: 36px;
+  font-weight: 900;
+  line-height: 1.1;
+  color: #111827;
+  letter-spacing: -0.8px;
+  margin-bottom: 8px;
+}
+
+.hero-tagline-desc {
+  font-size: 13px;
+  color: #4b5563;
+  margin-bottom: 16px;
+  font-weight: 500;
+}
+
+.hero-shop-now-btn {
+  background: #0b6e38;
+  color: white;
+  border: none;
+  padding: 11px 24px;
+  border-radius: 30px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(11, 110, 56, 0.3);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.hero-shop-now-btn:hover { background: #085229; }
+.hero-shop-now-btn:active { transform: scale(0.96); }
+
+.hero-slider-col {
+  flex: 1.3;
+  width: 100%;
+  min-width: 260px;
+}
+
+/* DYNAMIC CAROUSEL SLIDER BOX */
+.dynamic-slider-box {
+  width: 100%;
+  height: 220px;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.12);
+  background: #f3f4f6;
+  cursor: grab;
+  user-select: none;
+  touch-action: pan-y;
+}
+
+.dynamic-slider-box:active {
+  cursor: grabbing;
+}
+
+.slider-track {
+  display: flex;
+  height: 100%;
+  width: 100%;
+  will-change: transform;
+  transition: transform 0.45s cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+.slider-track.dragging {
+  transition: none !important;
+}
+
+.slider-slide-item {
+  min-width: 100%;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-end;
+  box-sizing: border-box;
+}
+
+.slider-slide-item.active {
+  /* active state styling if needed */
+}
+
+.slider-bg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+.slider-overlay-gradient {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(180deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.7) 100%);
+}
+
+.slider-caption-box {
+  position: relative;
+  z-index: 2;
+  padding: 16px;
+  color: white;
+  width: 100%;
+}
+
+.slider-badge-tag {
+  display: inline-block;
+  background: rgba(234, 179, 8, 0.95);
+  color: #000000;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 10px;
+  border-radius: 12px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.slider-title-text {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffffff;
+  line-height: 1.2;
+  margin-bottom: 2px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.slider-sub-text {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.slider-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 10;
+  background: rgba(255,255,255,0.7);
+  color: #000;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(4px);
+  transition: background 0.2s;
+}
+
+.slider-nav-arrow:hover { background: white; }
+.slider-nav-arrow.left-arrow { left: 10px; }
+.slider-nav-arrow.right-arrow { right: 10px; }
+
+.slider-dots-container {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  gap: 6px;
+}
+
+.slider-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.5);
+  cursor: pointer;
+  transition: width 0.3s, background 0.3s;
+}
+
+.slider-dot.active {
+  width: 20px;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+/* FEATURES PILLS ROW (5 Cards) */
+.features-pills-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 12px 2px;
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+.features-pills-row::-webkit-scrollbar { display: none; }
+
+.feature-pill-card {
+  background: white;
+  border-radius: 18px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: var(--shadow);
+  border: 1px solid #f0f0f0;
+  flex-shrink: 0;
+  min-width: 135px;
+}
+
+.feat-icon { font-size: 20px; }
+.feat-text { font-size: 12px; font-weight: 800; color: #111827; white-space: nowrap; }
+
+/* CATEGORY CHIPS ROW */
+.category-chips-row {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+}
+
+.category-chips-row::-webkit-scrollbar { display: none; }
+
+.cat-chip {
+  background: white;
+  padding: 8px 18px;
+  border-radius: 25px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #374151;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cat-chip.active {
+  background: #0b6e38;
+  color: white;
+  border-color: #0b6e38;
+  box-shadow: 0 4px 12px rgba(11, 110, 56, 0.25);
+}
+
+/* TOP BAR (Admin & Other Screens) */
+.topBar {
+  background: #0b6e38;
+  padding: 15px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: white;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.brand-name { font-size: 18px; font-weight: 800; letter-spacing: 0.5px; }
+
+.primaryButton {
+  background: #0b6e38;
+  color: white;
+  border: none;
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 14px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.primaryButton:hover { background: #085229; }
+.primaryButton:active { transform: scale(0.98); }
+
+.secondaryButton {
+  background: #f0f0f0;
+  color: #333;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.icon-btn { background: none; border: none; cursor: pointer; font-size: 20px; }
+
+/* Dashboard Cards */
+.dashboardCards { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 15px; }
+.dashboardCard {
+  background: white;
+  padding: 20px;
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  text-align: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+.dashboardCard:active { transform: scale(0.97); }
+.dashboardCard h2 { font-size: 24px; margin-bottom: 5px; }
+.dashboardCard h3 { font-size: 14px; color: #444; }
+.dashboardCard p { font-size: 16px; font-weight: 800; color: #0b6e38; margin-top: 5px; }
+
+/* Bottom Nav */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  background: white;
+  display: flex;
+  justify-content: space-around;
+  padding: 8px 0;
+  box-shadow: 0 -4px 15px rgba(0,0,0,0.06);
+  z-index: 100;
+  border-top: 1px solid #f0f0f0;
+}
+.nav-item { border: none; background: none; color: #888; font-size: 11px; font-weight: 700; display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+.nav-item span { font-size: 20px; margin-bottom: 2px; }
+.nav-item.active { color: #0b6e38; }
+
+/* Loader */
+.loader-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: rgba(0,0,0,0.6);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  z-index: 99999;
+}
+.spinner {
+  width: 45px; height: 45px;
+  border: 4px solid #fff; border-top: 4px solid #0b6e38;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* Home Product Grid */
+.product-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; padding: 5px 0 15px 0; }
+.p-card { background: white; border-radius: 16px; padding: 12px; box-shadow: var(--shadow); border: 1px solid #f0f0f0; cursor: pointer; }
+.p-img-box { width: 100%; height: 130px; border-radius: 12px; overflow: hidden; background: #f0f0f0; margin-bottom: 10px; position: relative; }
+.p-img { width: 100%; height: 100%; object-fit: cover; }
+.p-title { font-weight: 800; font-size: 13px; color: #222; margin-bottom: 2px; line-height: 1.3; }
+.p-price { font-weight: 800; color: #0b6e38; font-size: 15px; }
+
+/* Category Pills */
+.category-container { display: flex; gap: 10px; overflow-x: auto; padding: 10px 15px; }
+.cat-pill { background: white; padding: 8px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; white-space: nowrap; box-shadow: var(--shadow); cursor: pointer; }
+.cat-pill.active { background: #0b6e38; color: white; }
+
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* SEGMENTED ROLE TOGGLE */
+.segmented-role-container {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 14px;
+  padding: 4px;
+  margin-bottom: 20px;
+  border: 1px solid #e2e8f0;
+}
+
+.role-btn {
+  flex: 1;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: #64748b;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.role-btn.active {
+  background: #0b6e38;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(11, 110, 56, 0.25);
+}
+
+/* AUTH CARDS & FORM INPUTS */
+.auth-brand-header {
+  background: linear-gradient(135deg, #0b6e38 0%, #148f42 100%);
+  padding: 28px 20px 22px 20px;
+  color: white;
+  text-align: center;
+  box-shadow: 0 8px 20px rgba(11, 110, 56, 0.15);
+  position: relative;
+}
+
+.auth-logo-badge {
+  width: 68px;
+  height: 68px;
+  background: #ffffff;
+  border-radius: 20px;
+  margin: 0 auto 10px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  border: 2px solid #eab308;
+  padding: 6px;
+}
+
+.auth-logo-badge img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.auth-form-card {
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 22px 20px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+  border: 1px solid #f0f0f0;
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.input-group {
+  position: relative;
+  margin-bottom: 15px;
+}
+
+.input-group label {
+  display: block;
+  font-size: 12px;
+  font-weight: 800;
+  color: #374151;
+  margin-bottom: 6px;
+}
+
+.input-field-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-icon {
+  position: absolute;
+  left: 14px;
+  font-size: 16px;
+  color: #9ca3af;
+  pointer-events: none;
+}
+
+.custom-auth-input {
+  width: 100%;
+  padding: 13px 14px 13px 42px;
+  border-radius: 12px;
+  border: 1.5px solid #e5e7eb;
+  font-size: 14px;
+  color: #111827;
+  outline: none;
+  background: #fafafa;
+  transition: all 0.2s ease;
+}
+
+.custom-auth-input:focus {
+  border-color: #0b6e38;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgba(11, 110, 56, 0.12);
+}
+
+.toggle-pwd-btn {
+  position: absolute;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 4px;
+}
+
+.quick-login-chip {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #334155;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  transition: all 0.2s;
+  margin-bottom: 8px;
+}
+
+.quick-login-chip:hover {
+  background: #eaf7ee;
+  border-color: #bbf7d0;
+  color: #0b6e38;
+}
+
+/* ==========================================================================
+   APP DARK MODE OVERRIDES
+   ========================================================================== */
+body.dark-mode {
+  --bg: #0f172a;
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+body.dark-mode div[style*="background:white"],
+body.dark-mode div[style*="background: white"],
+body.dark-mode div[style*="background:#ffffff"],
+body.dark-mode form[style*="background:white"],
+body.dark-mode .card,
+body.dark-mode .dashboardCard {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode h1, 
+body.dark-mode h2, 
+body.dark-mode h3, 
+body.dark-mode h4, 
+body.dark-mode h5, 
+body.dark-mode h6 {
+  color: #f8fafc !important;
+}
+
+body.dark-mode p, 
+body.dark-mode label {
+  color: #cbd5e1 !important;
+}
+
+body.dark-mode input[type="text"],
+body.dark-mode input[type="number"],
+body.dark-mode input[type="email"],
+body.dark-mode input[type="password"],
+body.dark-mode select,
+body.dark-mode textarea {
+  background-color: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+body.dark-mode .bottom-nav {
+  background-color: #0f172a !important;
+  border-top: 1px solid #1e293b !important;
+}
+
+body.dark-mode .bottom-nav .nav-item {
+  color: #94a3b8 !important;
+}
+
+body.dark-mode .bottom-nav .nav-item.active {
+  color: #4ade80 !important;
+}
+
+body.dark-mode .feature-pill-card,
+body.dark-mode .cat-chip,
+body.dark-mode .product-card {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+body.dark-mode .cat-chip.active {
+  background-color: #148f42 !important;
+  color: #ffffff !important;
+}
+
+body.dark-mode .modal-content {
+  background-color: #1e293b !important;
+  color: #f8fafc !important;
+  border: 1px solid #334155 !important;
+}
+
+
+
+/* 1. Fix the Root Container */
+html, body {
+  margin: 0; padding: 0; min-height: 100%; width: 100%;
+  background-color: var(--bg);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+#app-root { height: 100%; width: 100%; position: relative; }
+.screen {
+  display: none; position: fixed; top: 0; left: 0;
+  width: 100%; height: 100%; overflow-y: auto;
+  background: #ffffff; z-index: 1;
+}
+.screen.active { display: block !important; z-index: 10; }
+#splashScreen {
+  background: #0b6e38 !important; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 99999; text-align: center; display: none;
+}
+#splashScreen.active { display: flex !important; }
+.loader-spinner {
+  width: 40px; height: 40px; border: 4px solid rgba(255,255,255,0.3);
+  border-top: 4px solid #fff; border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }

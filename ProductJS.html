@@ -1,0 +1,846 @@
+<script>
+let currentProduct = null;
+let selectedVariant = null;
+let currentDetailQty = 1;
+let previousScreenBeforeDetail = "homeScreen";
+let selectedReviewStar = 5;
+let currentProductReviews = [];
+let currentProductLikedState = false;
+
+window.openProduct = function(idInput, fromScreen) {
+    if (fromScreen) previousScreenBeforeDetail = fromScreen;
+    currentDetailQty = 1;
+    updateDetailQtyDisplay();
+
+    const productId = (typeof idInput === 'object' && idInput) ? (idInput.id || idInput.productId) : idInput;
+
+    showLoading();
+    server("getProductDetails", productId).then(p => {
+        hideLoading();
+        if ((!p || !p.name) && typeof idInput === 'object' && idInput && (idInput.name || idInput.title)) {
+            p = idInput;
+        }
+        if (!p || (!p.name && !p.title)) return alert("Product details not found.");
+        currentProduct = p;
+        
+        document.getElementById("detailTitle").innerText = p.name || p.title || "AaharShree Special Product";
+        document.getElementById("detailCategory").innerText = p.category || "AaharShree Special";
+        document.getElementById("detailImg").src = p.image1 || p.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+        document.getElementById("detailDesc").innerText = p.description || "Traditional homemade pickle prepared with authentic spices and pure mustard oil.";
+        
+        // Handle pre-order tag
+        const isPre = !!(p.preOrder || p.isPreOrder || p.preorder);
+        const preTag = document.getElementById("detailPreOrderTag");
+        if (preTag) preTag.style.display = isPre ? "block" : "none";
+
+        // Gallery Thumbnails (image1, image2, image3, image4)
+        renderProductGalleryThumbnails(p);
+
+        // Variants Handling
+        const varRow = document.getElementById("detailVariantsRow");
+        varRow.innerHTML = "";
+        
+        if (p.variants && p.variants.length > 0) {
+            p.variants.forEach((v, idx) => {
+                const btn = document.createElement("button");
+                btn.className = "secondaryButton";
+                btn.style.width = "auto";
+                btn.style.padding = "8px 14px";
+                btn.style.fontSize = "12px";
+                btn.style.fontWeight = "800";
+                btn.style.borderRadius = "10px";
+                btn.innerHTML = `${v.weight} - ₹${v.price}`;
+                btn.onclick = () => selectVariant(v, btn);
+                varRow.appendChild(btn);
+                if (idx === 0) selectVariant(v, btn); // Default select first
+            });
+        } else {
+            // Default single variant
+            selectedVariant = { weight: p.weight || '500g Jar', price: p.offerPrice || p.mrp || 299 };
+            updateDetailPriceDisplay(selectedVariant.price, p.mrp);
+            varRow.innerHTML = `<span style="font-size:12px; font-weight:800; background:#f1f5f9; color:#0f172a; padding:6px 14px; border-radius:10px; border:1px solid #cbd5e1;">${selectedVariant.weight}</span>`;
+        }
+
+        // Load Product Reviews & Likes from Server
+        loadProductReviews(p.id);
+
+        // Update Detail Page Wishlist Button State
+        updateProductDetailWishlistBtnUI();
+
+        // Load Recommended Products Strip
+        renderRecommendationsStrip(p);
+
+        // Reset write review form state
+        selectedReviewStar = 5;
+        updateStarPickerUI();
+        const writeForm = document.getElementById("writeReviewFormBox");
+        if (writeForm) writeForm.style.display = "none";
+
+        showScreen("productScreen");
+    }).catch(err => {
+        hideLoading();
+        alert("Error loading product details: " + err);
+    });
+};
+
+function renderProductGalleryThumbnails(product) {
+    const galleryEl = document.getElementById("detailThumbnailsGallery");
+    if (!galleryEl) return;
+
+    const images = [];
+    if (product.image1) images.push(product.image1);
+    if (product.image2) images.push(product.image2);
+    if (product.image3) images.push(product.image3);
+    if (product.image4) images.push(product.image4);
+
+    // Fallback if no gallery images
+    if (images.length === 0) {
+        images.push(product.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500");
+    }
+
+    let html = "";
+    images.forEach((imgUrl, i) => {
+        html += `
+        <div onclick="setMainDetailImage('${imgUrl}', this)" 
+             style="width:54px; height:54px; border-radius:10px; overflow:hidden; border:2px solid ${i === 0 ? '#0b6e38' : '#e2e8f0'}; cursor:pointer; shrink:0; background:#f8fafc;">
+           <img src="${imgUrl}" style="width:100%; height:100%; object-fit:cover;">
+        </div>`;
+    });
+
+    galleryEl.innerHTML = html;
+}
+
+window.setMainDetailImage = function(url, thumbDiv) {
+    const mainImg = document.getElementById("detailImg");
+    if (mainImg) mainImg.src = url;
+
+    document.querySelectorAll("#detailThumbnailsGallery > div").forEach(d => {
+        d.style.borderColor = "#e2e8f0";
+    });
+    if (thumbDiv) thumbDiv.style.borderColor = "#0b6e38";
+};
+
+function selectVariant(v, btnElement) {
+    selectedVariant = v;
+    document.querySelectorAll("#detailVariantsRow button").forEach(b => {
+        b.style.background = "#f8fafc";
+        b.style.color = "#334155";
+        b.style.border = "1px solid #cbd5e1";
+    });
+    if (btnElement) {
+        btnElement.style.background = "#0b6e38";
+        btnElement.style.color = "white";
+        btnElement.style.border = "1px solid #0b6e38";
+    }
+    
+    updateDetailPriceDisplay(v.price, currentProduct?.mrp);
+}
+
+function updateDetailPriceDisplay(price, mrp) {
+    const priceEl = document.getElementById("detailPrice");
+    const mrpEl = document.getElementById("detailMRP");
+    const discEl = document.getElementById("detailDiscountBadge");
+
+    if (priceEl) priceEl.innerText = "₹" + price;
+    if (mrpEl) {
+        if (mrp && mrp > price) {
+            mrpEl.innerText = "₹" + mrp;
+            mrpEl.style.display = "inline";
+            if (discEl) {
+                const save = Math.round(((mrp - price) / mrp) * 100);
+                discEl.innerText = `Save ${save}%`;
+                discEl.style.display = "inline";
+            }
+        } else {
+            mrpEl.style.display = "none";
+            if (discEl) discEl.style.display = "none";
+        }
+    }
+}
+
+window.changeDetailQty = function(delta) {
+    currentDetailQty += delta;
+    if (currentDetailQty < 1) currentDetailQty = 1;
+    if (currentDetailQty > 20) currentDetailQty = 20;
+    updateDetailQtyDisplay();
+};
+
+function updateDetailQtyDisplay() {
+    const qtyEl = document.getElementById("detailQtyDisplay");
+    if (qtyEl) qtyEl.innerText = currentDetailQty;
+}
+
+window.goBackFromProductDetail = function() {
+    if (previousScreenBeforeDetail && document.getElementById(previousScreenBeforeDetail)) {
+        showScreen(previousScreenBeforeDetail);
+    } else {
+        showScreen("homeScreen");
+    }
+};
+
+window.addCurrentToCart = function() {
+    if (!currentProduct || !selectedVariant) return false;
+    
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Operations Paused:\nAaharShree Naturals online ordering is currently undergoing scheduled maintenance by Master Admin.\n\nOnline cart additions & checkout are temporarily paused.");
+        return false;
+    }
+
+    const isPre = !!(currentProduct.preOrder || currentProduct.isPreOrder || currentProduct.preorder);
+    const item = {
+        id: currentProduct.id,
+        productId: currentProduct.id,
+        name: currentProduct.name,
+        price: selectedVariant.price,
+        weight: selectedVariant.weight,
+        image: currentProduct.image1 || currentProduct.image,
+        qty: currentDetailQty,
+        isPreOrder: isPre
+    };
+
+    addToCart(item);
+    if (typeof showCartAlert === 'function') {
+        showCartAlert(`Added ${currentDetailQty} x ${currentProduct.name} (${selectedVariant.weight}) to cart!`);
+    } else {
+        alert(`🛒 Added ${currentDetailQty} x ${currentProduct.name} (${selectedVariant.weight}) to cart!`);
+    }
+    return true;
+};
+
+window.buyCurrentNow = function() {
+    const added = addCurrentToCart();
+    if (added) {
+        showCart();
+    }
+};
+
+window.checkPincodeDelivery = function() {
+    const input = document.getElementById("productPincodeInput");
+    const result = document.getElementById("pincodeResultBox");
+    if (!input || !result) return;
+
+    const val = input.value.trim();
+    if (!val || val.length !== 6 || isNaN(val)) {
+        result.style.display = "block";
+        result.style.background = "#fff1f2";
+        result.style.borderColor = "#fca5a5";
+        result.style.color = "#991b1b";
+        result.innerHTML = "❌ Please enter a valid 6-digit postal pincode.";
+        return;
+    }
+
+    result.style.display = "block";
+    result.style.background = "#f0fdf4";
+    result.style.borderColor = "#bbf7d0";
+    result.style.color = "#166534";
+    result.innerHTML = `✅ <strong>Deliverable to Pincode ${val}!</strong><br>🚚 Standard Delivery: <strong>2 - 4 Business Days</strong> via Express Logistics.<br>🎁 <em>Free Home Shipping applies on orders above ₹500.</em>`;
+};
+
+/**
+ * CUSTOMER REVIEWS & RATINGS SYSTEM
+ */
+window.loadProductReviews = function(productId) {
+    if (!productId) return;
+
+    server("getProductReviews", productId).then(res => {
+        if (!res) return;
+        currentProductReviews = res.reviews || [];
+        const avg = res.avgRating || 5.0;
+        const count = res.count || currentProductReviews.length;
+        const likes = res.likes || 48;
+
+        // Update Rating Text Headers
+        const avgText = document.getElementById("detailAvgRatingText");
+        const countText = document.getElementById("detailReviewCountText");
+        const scoreBox = document.getElementById("reviewBoxScore");
+        const countBox = document.getElementById("reviewBoxCount");
+        const likesCountEl = document.getElementById("detailLikesCount");
+
+        if (avgText) avgText.innerText = avg;
+        if (countText) countText.innerText = `(${count} Reviews)`;
+        if (scoreBox) scoreBox.innerText = avg;
+        if (countBox) countBox.innerText = `Based on ${count} verified reviews`;
+        if (likesCountEl) likesCountEl.innerText = likes;
+
+        // Update Like Heart State from Local Storage
+        const likedKeys = JSON.parse(localStorage.getItem("liked_products_map") || "{}");
+        currentProductLikedState = !!likedKeys[productId];
+        updateLikeHeartUI();
+
+        // Render Reviews List Cards
+        renderReviewsList();
+    }).catch(err => {
+        console.warn("Error fetching reviews:", err);
+    });
+};
+
+function updateLikeHeartUI() {
+    const heartIcon = document.getElementById("detailHeartIcon");
+    const btn = document.getElementById("detailLikeBtn");
+    if (heartIcon && btn) {
+        if (currentProductLikedState) {
+            heartIcon.innerText = "💖";
+            btn.style.borderColor = "#f43f5e";
+            btn.style.background = "#fff1f2";
+        } else {
+            heartIcon.innerText = "❤️";
+            btn.style.borderColor = "#e2e8f0";
+            btn.style.background = "#ffffff";
+        }
+    }
+}
+
+window.toggleCurrentProductLike = function() {
+    if (!currentProduct || !currentProduct.id) return;
+    const prodId = currentProduct.id;
+    currentProductLikedState = !currentProductLikedState;
+
+    // Save to LocalStorage
+    const likedKeys = JSON.parse(localStorage.getItem("liked_products_map") || "{}");
+    likedKeys[prodId] = currentProductLikedState;
+    localStorage.setItem("liked_products_map", JSON.stringify(likedKeys));
+
+    updateLikeHeartUI();
+
+    server("toggleProductLike", { productId: prodId, isLiked: currentProductLikedState }).then(res => {
+        if (res && res.likes !== undefined) {
+            const likesCountEl = document.getElementById("detailLikesCount");
+            if (likesCountEl) likesCountEl.innerText = res.likes;
+        }
+    });
+};
+
+function renderReviewsList() {
+    const container = document.getElementById("productReviewsListContainer");
+    if (!container) return;
+
+    if (!currentProductReviews || currentProductReviews.length === 0) {
+        container.innerHTML = `
+        <div style="text-align:center; padding:20px; color:#64748b; background:#f8fafc; border-radius:12px;">
+           <span style="font-size:24px;">⭐</span>
+           <p style="margin:4px 0 0 0; font-size:12px; font-weight:700;">No reviews yet. Be the first to share your feedback!</p>
+        </div>`;
+        return;
+    }
+
+    let html = "";
+    currentProductReviews.forEach(r => {
+        const ratingNum = Number(r.rating) || 5;
+        const starsStr = "⭐".repeat(ratingNum);
+
+        html += `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px 14px; box-shadow:0 1px 4px rgba(0,0,0,0.02);">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                 <span style="font-weight:800; font-size:13px; color:#0f172a;">${r.customerName || 'Pickle Enthusiast'}</span>
+                 ${r.verified ? `<span style="background:#dcfce7; color:#15803d; font-size:9px; font-weight:800; padding:2px 6px; border-radius:6px;">✓ Verified Buyer</span>` : ''}
+              </div>
+              <span style="font-size:10px; color:#94a3b8; font-weight:600;">${r.date || 'Recent'}</span>
+           </div>
+           
+           <div style="font-size:12px; color:#f59e0b; margin-bottom:6px;">${starsStr}</div>
+           
+           <p style="font-size:12px; color:#334155; margin:0; line-height:1.5;">${r.comment || ''}</p>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+window.toggleWriteReviewForm = function() {
+    const box = document.getElementById("writeReviewFormBox");
+    if (!box) return;
+    if (box.style.display === "none" || !box.style.display) {
+        box.style.display = "block";
+        selectedReviewStar = 5;
+        updateStarPickerUI();
+        // Auto fill author name if logged in
+        try {
+            const u = JSON.parse(localStorage.getItem("aaharshree_user") || "{}");
+            if (u && u.name) {
+                const nameInput = document.getElementById("reviewAuthorName");
+                if (nameInput && !nameInput.value) nameInput.value = u.name;
+            }
+        } catch(e) {}
+    } else {
+        box.style.display = "none";
+    }
+};
+
+window.setRatingStar = function(num) {
+    selectedReviewStar = num || 5;
+    updateStarPickerUI();
+};
+
+function updateStarPickerUI() {
+    const stars = document.querySelectorAll("#starPickerRow .star-pick");
+    stars.forEach((s, idx) => {
+        if (idx < selectedReviewStar) {
+            s.style.opacity = "1";
+            s.style.transform = "scale(1.1)";
+        } else {
+            s.style.opacity = "0.3";
+            s.style.transform = "scale(1)";
+        }
+    });
+}
+
+window.submitProductReview = function() {
+    if (!currentProduct || !currentProduct.id) {
+        alert("Product information not found. Please try again.");
+        return;
+    }
+    
+    const nameInput = document.getElementById("reviewAuthorName");
+    const commentInput = document.getElementById("reviewCommentText");
+    
+    const author = nameInput ? nameInput.value.trim() : "";
+    const comment = commentInput ? commentInput.value.trim() : "";
+
+    if (!author) {
+        alert("Please enter your name or city.");
+        if (nameInput) nameInput.focus();
+        return;
+    }
+    if (!comment) {
+        alert("Please write a short review comment.");
+        if (commentInput) commentInput.focus();
+        return;
+    }
+
+    const payload = {
+        productId: currentProduct.id,
+        customerName: author,
+        rating: selectedReviewStar || 5,
+        comment: comment
+    };
+
+    // Optimistically add review locally
+    const localNewRev = {
+        id: "REV_" + Date.now(),
+        productId: currentProduct.id,
+        customerName: author,
+        rating: selectedReviewStar || 5,
+        comment: comment,
+        date: new Date().toISOString().split("T")[0],
+        verified: true,
+        likes: 1
+    };
+
+    if (!currentProductReviews) currentProductReviews = [];
+    currentProductReviews.unshift(localNewRev);
+    renderReviewsList();
+
+    if (commentInput) commentInput.value = "";
+    toggleWriteReviewForm();
+    alert("🎉 Thank you! Your review has been posted successfully.");
+
+    server("addProductReview", payload).then(res => {
+        if (res && res.success) {
+            if (res.reviews) {
+                currentProductReviews = res.reviews;
+                renderReviewsList();
+            }
+            if (res.avgRating) {
+                const scoreEl = document.getElementById("reviewBoxScore");
+                if (scoreEl) scoreEl.innerText = res.avgRating;
+            }
+            if (res.count) {
+                const countEl = document.getElementById("reviewBoxCount");
+                if (countEl) countEl.innerText = `Based on ${res.count} review${res.count === 1 ? '' : 's'}`;
+            }
+        }
+    }).catch(err => {
+        console.warn("Server review post warning:", err);
+    });
+};
+
+window.scrollToReviewsSection = function() {
+    const sec = document.getElementById("productReviewsSection");
+    if (sec) sec.scrollIntoView({ behavior: 'smooth' });
+};
+
+/**
+ * RECOMMENDATIONS STRIP ("YOU MAY ALSO LIKE")
+ */
+window.renderRecommendationsStrip = function(currProd) {
+    const strip = document.getElementById("recommendationsStripContainer");
+    if (!strip) return;
+
+    let allProds = window.allProducts || [];
+    
+    // Fetch products if not yet loaded in memory
+    const processList = (prods) => {
+        const filtered = prods.filter(p => String(p.id) !== String(currProd?.id));
+        
+        if (filtered.length === 0) {
+            strip.innerHTML = `<p style="color:#94a3b8; font-size:11px; padding:10px;">No other pickles in this batch.</p>`;
+            return;
+        }
+
+        // Prioritize same category, then shuffle
+        let categoryMatches = filtered.filter(p => p.category === currProd?.category);
+        let remaining = filtered.filter(p => p.category !== currProd?.category);
+
+        let recList = [...categoryMatches, ...remaining].slice(0, 6);
+
+        let html = "";
+        recList.forEach(p => {
+            const price = p.offerPrice || p.mrp || 299;
+            const img = p.image1 || p.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=300";
+            
+            html += `
+            <div style="min-width:140px; width:140px; background:white; border:1px solid #e2e8f0; border-radius:14px; overflow:hidden; flex-shrink:0; scroll-snap-align:start; box-shadow:0 2px 8px rgba(0,0,0,0.03); display:flex; flex-direction:column; justify-space-between;">
+               <div onclick="openProduct('${p.id}', 'productScreen')" style="height:100px; background:#f8fafc; position:relative; cursor:pointer; overflow:hidden;">
+                  <img src="${img}" style="width:100%; height:100%; object-fit:cover;">
+                  <span style="position:absolute; top:6px; left:6px; background:rgba(11,110,56,0.85); color:white; font-size:8px; font-weight:800; padding:2px 6px; border-radius:6px; backdrop-filter:blur(2px);">
+                     ⭐ 4.9
+                  </span>
+               </div>
+               <div style="padding:10px; display:flex; flex-direction:column; justify-content:space-between; flex:1;">
+                  <div>
+                     <div style="font-size:9px; font-weight:800; color:#0b6e38; text-transform:uppercase; margin-bottom:2px;">${p.category || 'Homemade'}</div>
+                     <h5 onclick="openProduct('${p.id}', 'productScreen')" style="margin:0 0 4px 0; font-size:11px; font-weight:800; color:#0f172a; cursor:pointer; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.2;">${p.name}</h5>
+                  </div>
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                     <span style="font-weight:900; font-size:13px; color:#0b6e38;">₹${price}</span>
+                     <button onclick="quickAddRecommendedToCart('${p.id}')" style="background:#eaf7ee; color:#0b6e38; border:none; width:26px; height:26px; border-radius:8px; font-weight:800; font-size:14px; cursor:pointer; display:flex; align-items:center; justify-center;">+</button>
+                  </div>
+               </div>
+            </div>`;
+        });
+
+        strip.innerHTML = html;
+    };
+
+    if (allProds && allProds.length > 0) {
+        processList(allProds);
+    } else {
+        server("getAllProducts").then(prods => {
+            window.allProducts = prods || [];
+            processList(window.allProducts);
+        });
+    }
+};
+
+window.quickAddRecommendedToCart = function(prodId) {
+    const allProds = window.allProducts || [];
+    const p = allProds.find(item => String(item.id) === String(prodId));
+    if (!p) return;
+
+    const price = p.offerPrice || p.mrp || 299;
+    const item = {
+        id: p.id,
+        productId: p.id,
+        name: p.name,
+        price: price,
+        weight: p.weight || '500g Jar',
+        image: p.image1 || p.image,
+        qty: 1,
+        isPreOrder: !!(p.preOrder || p.isPreOrder)
+    };
+
+    addToCart(item);
+    if (typeof showCartAlert === 'function') {
+        showCartAlert(`Added ${p.name} to cart!`);
+    } else {
+        alert(`🛒 Added ${p.name} to cart!`);
+    }
+};
+
+/**
+ * WISHLIST MANAGEMENT CONTROLLER
+ */
+
+function getUserMobile() {
+    try {
+        if (typeof App !== 'undefined' && App && App.user && App.user.mobile) return App.user.mobile;
+        const u = JSON.parse(localStorage.getItem("aaharshree_user") || "{}");
+        if (u && u.mobile) return u.mobile;
+    } catch(e) {}
+    return '';
+}
+
+function getLocalWishlistMap() {
+    try {
+        return JSON.parse(localStorage.getItem("aaharshree_wishlist_map") || "{}");
+    } catch(e) {
+        return {};
+    }
+}
+
+function setLocalWishlistMap(map) {
+    try {
+        localStorage.setItem("aaharshree_wishlist_map", JSON.stringify(map || {}));
+        updateWishlistBadgeUI();
+    } catch(e) {}
+}
+
+window.isProductInWishlist = function(prodId) {
+    if (!prodId) return false;
+    const map = getLocalWishlistMap();
+    return !!map[String(prodId)];
+};
+
+window.updateWishlistBadgeUI = function() {
+    try {
+        const map = getLocalWishlistMap();
+        const count = Object.keys(map).length;
+        const badgeEls = document.querySelectorAll(".wishlist-count-badge");
+        badgeEls.forEach(el => {
+            el.innerText = count;
+            el.style.display = count > 0 ? "inline-block" : "none";
+        });
+    } catch(e) {}
+};
+
+window.updateProductDetailWishlistBtnUI = function() {
+    if (!currentProduct || !currentProduct.id) return;
+    const isSaved = isProductInWishlist(currentProduct.id);
+
+    const btn = document.getElementById("detailWishlistBtn");
+    const icon = document.getElementById("detailWishlistIcon");
+    const label = document.getElementById("detailWishlistLabel");
+
+    if (btn) {
+        if (isSaved) {
+            btn.style.background = "#e11d48";
+            btn.style.borderColor = "#be123c";
+            btn.style.color = "#ffffff";
+            btn.style.boxShadow = "0 4px 12px rgba(225, 29, 72, 0.25)";
+            if (icon) icon.innerText = "💖";
+            if (label) label.innerText = "Saved in Wishlist (Tap to Remove)";
+        } else {
+            btn.style.background = "#fff1f2";
+            btn.style.borderColor = "#fecdd3";
+            btn.style.color = "#be123c";
+            btn.style.boxShadow = "none";
+            if (icon) icon.innerText = "💖";
+            if (label) label.innerText = "Save to Wishlist";
+        }
+    }
+    updateWishlistBadgeUI();
+};
+
+window.toggleCurrentProductWishlist = function() {
+    if (!currentProduct || !currentProduct.id) return;
+    const prodId = String(currentProduct.id);
+    const map = getLocalWishlistMap();
+    const isSavedNow = !map[prodId];
+
+    if (isSavedNow) {
+        map[prodId] = {
+            id: prodId,
+            name: currentProduct.name,
+            price: currentProduct.offerPrice || currentProduct.mrp || 299,
+            mrp: currentProduct.mrp || 350,
+            weight: currentProduct.weight || '500g Jar',
+            image: currentProduct.image1 || currentProduct.image || '',
+            category: currentProduct.category || 'Homemade',
+            addedAt: new Date().toISOString()
+        };
+    } else {
+        delete map[prodId];
+    }
+
+    setLocalWishlistMap(map);
+    updateProductDetailWishlistBtnUI();
+
+    // Server Sync
+    server("toggleWishlist", {
+        productId: prodId,
+        isSaved: isSavedNow,
+        mobile: getUserMobile()
+    }).catch(err => console.warn("Wishlist sync warning:", err));
+
+    const msg = isSavedNow 
+        ? `💖 Added ${currentProduct.name} to your wishlist!`
+        : `💔 Removed ${currentProduct.name} from your wishlist.`;
+
+    if (typeof showCartAlert === 'function') {
+        showCartAlert(msg);
+    } else {
+        alert(msg);
+    }
+};
+
+window.updateWishlistBadgeUI = function() {
+    const map = getLocalWishlistMap();
+    const keys = Object.keys(map);
+    const count = keys.length;
+
+    const badge = document.getElementById("wishlistBadge");
+    const countLabel = document.getElementById("wishlistCountLabel");
+
+    if (badge) {
+        if (count > 0) {
+            badge.innerText = count;
+            badge.style.display = "inline-flex";
+        } else {
+            badge.style.display = "none";
+        }
+    }
+
+    if (countLabel) {
+        countLabel.innerText = `${count} Saved Pickle${count === 1 ? '' : 's'}`;
+    }
+};
+
+window.toggleWishlistDrawer = function() {
+    const overlay = document.getElementById("wishlistDrawerOverlay");
+    if (!overlay) return;
+
+    if (overlay.style.display === "none" || !overlay.style.display) {
+        overlay.style.display = "block";
+        renderWishlistDrawerItems();
+    } else {
+        overlay.style.display = "none";
+    }
+};
+
+window.closeWishlistDrawer = function(e) {
+    if (e && e.stopPropagation) e.stopPropagation();
+    const overlay = document.getElementById("wishlistDrawerOverlay");
+    if (overlay) overlay.style.display = "none";
+};
+
+window.renderWishlistDrawerItems = function() {
+    const container = document.getElementById("wishlistListContainer");
+    if (!container) return;
+
+    updateWishlistBadgeUI();
+    const map = getLocalWishlistMap();
+    const items = Object.values(map);
+
+    if (!items || items.length === 0) {
+        container.innerHTML = `
+        <div style="text-align:center; padding:40px 20px; color:#64748b; background:#f8fafc; border-radius:18px; border:1px dashed #cbd5e1;">
+           <div style="font-size:42px; margin-bottom:10px;">💖</div>
+           <h4 style="margin:0 0 6px 0; font-size:15px; font-weight:800; color:#0f172a;">Your Wishlist is Empty</h4>
+           <p style="margin:0 0 16px 0; font-size:12px; line-height:1.4;">Save your favorite authentic homemade pickles to review or purchase later.</p>
+           <button onclick="window.closeWishlistDrawer(); showScreen('homeScreen');" style="background:#0b6e38; color:white; border:none; padding:8px 18px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+              🌿 Explore Pickle Catalog
+           </button>
+        </div>`;
+        return;
+    }
+
+    let html = "";
+    items.forEach(item => {
+        const img = item.image || 'https://via.placeholder.com/150?text=Pickle';
+        const price = item.price || 299;
+
+        html += `
+        <div style="display:flex; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:10px; align-items:center; position:relative;">
+           
+           <div onclick="window.closeWishlistDrawer(); openProduct('${item.id}', 'homeScreen')" style="width:70px; height:70px; background:white; border-radius:12px; overflow:hidden; flex-shrink:0; cursor:pointer; border:1px solid #e2e8f0;">
+              <img src="${img}" style="width:100%; height:100%; object-fit:cover;">
+           </div>
+
+           <div style="flex:1; display:flex; flex-direction:column; justify-content:space-between;">
+              <div>
+                 <div style="font-size:9px; font-weight:800; color:#0b6e38; text-transform:uppercase;">${item.category || 'Homemade Pickle'}</div>
+                 <h5 onclick="window.closeWishlistDrawer(); openProduct('${item.id}', 'homeScreen')" style="margin:2px 0 4px 0; font-size:12px; font-weight:800; color:#0f172a; cursor:pointer; line-height:1.3; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;">${item.name}</h5>
+                 <div style="font-size:10px; color:#64748b; font-weight:700;">${item.weight || '500g Jar'}</div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px;">
+                 <span style="font-size:14px; font-weight:900; color:#0b6e38;">₹${price}</span>
+                 <div style="display:flex; gap:6px;">
+                    <button onclick="window.removeWishlistItem('${item.id}')" style="background:#f1f5f9; color:#ef4444; border:none; padding:5px 8px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;" title="Remove">
+                       🗑️
+                    </button>
+                    <button onclick="window.addWishlistItemToCart('${item.id}')" style="background:#0b6e38; color:white; border:none; padding:5px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(11,110,56,0.15);">
+                       + Add to Cart
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+};
+
+window.removeWishlistItem = function(prodId) {
+    const map = getLocalWishlistMap();
+    delete map[prodId];
+    setLocalWishlistMap(map);
+    renderWishlistDrawerItems();
+    updateProductDetailWishlistBtnUI();
+
+    server("toggleWishlist", {
+        productId: prodId,
+        isSaved: false,
+        mobile: getUserMobile()
+    }).catch(err => console.warn(err));
+};
+
+window.clearAllWishlistItems = function() {
+    if (confirm("Are you sure you want to clear your saved wishlist?")) {
+        setLocalWishlistMap({});
+        renderWishlistDrawerItems();
+        updateProductDetailWishlistBtnUI();
+    }
+};
+
+window.addWishlistItemToCart = function(prodId) {
+    const map = getLocalWishlistMap();
+    const item = map[prodId];
+    if (!item) return;
+
+    const cartItem = {
+        id: item.id,
+        productId: item.id,
+        name: item.name,
+        price: item.price,
+        weight: item.weight || '500g Jar',
+        image: item.image,
+        qty: 1
+    };
+
+    addToCart(cartItem);
+    if (typeof showCartAlert === 'function') {
+        showCartAlert(`Added ${item.name} to cart!`);
+    } else {
+        alert(`🛒 Added ${item.name} to cart!`);
+    }
+};
+
+window.moveAllWishlistToCart = function() {
+    const map = getLocalWishlistMap();
+    const items = Object.values(map);
+
+    if (!items || items.length === 0) {
+        alert("Your wishlist is empty.");
+        return;
+    }
+
+    items.forEach(item => {
+        addToCart({
+            id: item.id,
+            productId: item.id,
+            name: item.name,
+            price: item.price,
+            weight: item.weight || '500g Jar',
+            image: item.image,
+            qty: 1
+        });
+    });
+
+    alert(`🎉 Success! Added ${items.length} saved wishlist pickle${items.length === 1 ? '' : 's'} to your cart.`);
+    window.closeWishlistDrawer();
+    showCart();
+};
+
+// Initial Sync on load
+document.addEventListener("DOMContentLoaded", function() {
+    updateWishlistBadgeUI();
+});
+setTimeout(function() {
+    updateWishlistBadgeUI();
+}, 800);
+
+</script>
+

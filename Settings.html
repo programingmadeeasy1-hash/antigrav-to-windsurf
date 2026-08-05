@@ -1,0 +1,468 @@
+<div id="settingsScreen" class="screen">
+  <!-- PREMIUM ADMIN HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button onclick="showScreen('dashboardScreen')" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div class="brand-name" style="color: white;">Business Settings</div>
+    </div>
+    <button onclick="loadSettings()" class="icon-btn" style="color:white; font-size:16px;" title="Refresh Settings">🔄</button>
+  </header>
+
+  <div style="padding:15px; padding-bottom:120px;">
+     
+     <!-- SUCCESS / STATUS BANNER -->
+     <div id="settingsStatusBanner" style="display:none; background:#dcfce7; border:1px solid #86efac; border-radius:12px; padding:12px 16px; margin-bottom:15px; color:#166534; font-size:12px; font-weight:700; align-items:center; justify-content:space-between;">
+        <div style="display:flex; align-items:center; gap:8px;">
+           <span style="font-size:16px;">✅</span>
+           <div>
+              <div id="settingsStatusMsg">Business settings saved successfully!</div>
+              <small id="settingsStatusTime" style="font-size:10px; opacity:0.8;"></small>
+           </div>
+        </div>
+        <button onclick="document.getElementById('settingsStatusBanner').style.display='none'" style="background:none; border:none; font-size:16px; color:#166534; cursor:pointer;">✕</button>
+     </div>
+
+     <form id="settingsForm" onsubmit="event.preventDefault(); saveSettingsAdmin();">
+        
+        <!-- SUB-TAB PILL NAVIGATION -->
+        <div class="settingsTabContainer" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:10px; margin-bottom:15px; scrollbar-width:none; -webkit-overflow-scrolling:touch;">
+          <button type="button" id="setTabBtnDelivery" onclick="switchSettingsTab('delivery')" style="padding:8px 14px; border-radius:20px; border:1px solid var(--primary); font-size:12px; font-weight:800; white-space:nowrap; background:var(--primary); color:white; cursor:pointer; transition:all 0.2s;">🚚 Shipping & Limits</button>
+          <button type="button" id="setTabBtnPayment" onclick="switchSettingsTab('payment')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">💳 Payment & UPI</button>
+          <button type="button" id="setTabBtnAnnouncements" onclick="switchSettingsTab('announcements')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">📢 Banner & Contacts</button>
+          <button type="button" id="setTabBtnInvoice" onclick="switchSettingsTab('invoice')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">📄 Invoice & Bill Setup</button>
+          <button type="button" id="setTabBtnFaqs" onclick="switchSettingsTab('faqs')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">💬 FAQ Content</button>
+          <button type="button" id="setTabBtnSidebar" onclick="switchSettingsTab('sidebar')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">🍔 Menu Customizer</button>
+          <button type="button" id="setTabBtnVision" onclick="switchSettingsTab('vision')" style="padding:8px 14px; border-radius:20px; border:1px solid #bbf7d0; font-size:12px; font-weight:800; white-space:nowrap; background:#f0fdf4; color:#166534; cursor:pointer; transition:all 0.2s;">🌿 Clean Food Vision</button>
+          <button type="button" id="setTabBtnSheetcontent" onclick="switchSettingsTab('sheetcontent')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">📸 Sheet Content & Uploads</button>
+          <button type="button" id="setTabBtnOps" onclick="switchSettingsTab('ops')" style="padding:8px 14px; border-radius:20px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; white-space:nowrap; background:#f1f5f9; color:#475569; cursor:pointer; transition:all 0.2s;">⚙️ Ops & Simulator</button>
+        </div>
+
+        <!-- SECTION 1: DELIVERY & ORDER RULES -->
+        <div id="setSecDelivery" class="settingsSec" style="background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px;">
+              🚚 Delivery & Order Limits
+           </h3>
+           
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Delivery Charge (₹)</label>
+                 <input type="number" id="setDeliveryCharge" oninput="updateSettingsSimulator()" required placeholder="50" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Free Delivery Above (₹)</label>
+                 <input type="number" id="setFreeDeliveryLimit" oninput="updateSettingsSimulator()" required placeholder="500" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+           </div>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Min Order Value (₹)</label>
+                 <input type="number" id="setMinOrderValue" oninput="updateSettingsSimulator()" placeholder="299" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+                 <small style="font-size:9px; color:#64748b;">Prevents micro-orders</small>
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">COD Handling Fee (₹)</label>
+                 <input type="number" id="setCodFee" oninput="updateSettingsSimulator()" placeholder="0" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+                 <small style="font-size:9px; color:#64748b;">Extra fee on COD</small>
+              </div>
+           </div>
+        </div>
+
+        <!-- SECTION 2: PAYMENT & DISCOUNTS -->
+        <div id="setSecPayment" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px;">
+              💳 Payment & Instant Discounts
+           </h3>
+
+           <div style="margin-bottom:12px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">UPI Instant Discount Amount (₹)</label>
+              <input type="number" id="setUpiDiscount" oninput="updateSettingsSimulator()" required placeholder="225" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              <small style="font-size:10px; color:#0b6e38; font-weight:600;">Direct instant discount applied when customer pays via UPI QR Code at checkout.</small>
+           </div>
+
+           <div>
+              <label style="font-size:11px; font-weight:700; color:#475569;">UPI VPA / ID for Payment QR Code</label>
+              <input type="text" id="setUpiId" oninput="updateSettingsSimulator()" required placeholder="q2106030721@ybl" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              <small style="font-size:10px; color:#64748b;">This UPI ID generates the payment QR code during customer checkout.</small>
+           </div>
+        </div>
+
+        <!-- SECTION 3: STORE ANNOUNCEMENTS & SUPPORT -->
+        <div id="setSecAnnouncements" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px;">
+              📢 Store Banner & Basic Support Contacts
+           </h3>
+
+           <div style="margin-bottom:12px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Store Top Announcement Banner Text</label>
+              <input type="text" id="setAnnouncementBanner" placeholder="🌾 Fresh sun-dried batches prepared weekly! Free home delivery above ₹500" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+           </div>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Support WhatsApp No.</label>
+                 <input type="text" id="setSupportWhatsapp" placeholder="9876543210" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">GST / Tax Rate (%)</label>
+                 <input type="number" id="setTaxPercentage" placeholder="0" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+           </div>
+        </div>
+
+        <!-- SECTION 4: INVOICE & PARCEL BILL CUSTOMIZER -->
+        <div id="setSecInvoice" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px; border:1px solid #e2e8f0;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px; font-weight:800;">
+              📄 Invoice & Parcel Bill Customizer
+           </h3>
+           <p style="font-size:11px; color:#64748b; margin-bottom:12px; line-height:1.4;">
+              Customize store name, FSSAI & GST registration numbers, official address, and terms displayed on customer PDF receipts and parcel shipping bills.
+           </p>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Store / Brand Name on Bill</label>
+                 <input type="text" id="setInvoiceStoreName" placeholder="AaharShree Natural Kitchens" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Tagline / Subtitle</label>
+                 <input type="text" id="setInvoiceTagline" placeholder="100% Homemade, Sun-Dried Organic Pickles" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+           </div>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">FSSAI Registration / License No.</label>
+                 <input type="text" id="setInvoiceFssai" placeholder="11521021000456" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">GSTIN Number</label>
+                 <input type="text" id="setInvoiceGstin" placeholder="27AAAAA0000A1Z5" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+           </div>
+
+           <div style="margin-bottom:12px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Registered Business Address on Invoice</label>
+              <input type="text" id="setInvoiceAddress" placeholder="Plot No. 42, Green Agro Food Park, Kothrud, Pune, Maharashtra - 411038" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+           </div>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:12px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Billing Phone No.</label>
+                 <input type="text" id="setInvoicePhone" placeholder="+91 98765 43210" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Billing Email Address</label>
+                 <input type="text" id="setInvoiceEmail" placeholder="billing@aaharshreenaturals.com" style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+              </div>
+           </div>
+
+           <div style="margin-bottom:12px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Storage & Return Terms Note (Invoice Footer)</label>
+              <textarea id="setInvoiceTerms" rows="2" placeholder="Store in a cool dry place. Always use a clean & dry spoon. 100% Natural & Sun-aged." style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-family:inherit;"></textarea>
+           </div>
+
+           <div style="margin-bottom:12px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Parcel Packing Note (Parcel Shipping Slip)</label>
+              <input type="text" id="setInvoiceParcelNote" placeholder="Packed with Care & Freshly Sealed. Tax Invoice included for parcel dispatch." style="width:100%; padding:10px; border-radius:8px; border:1px solid #cbd5e1; font-size:13px;">
+           </div>
+        </div>
+
+        <!-- SECTION 5: CUSTOMER SUPPORT & FAQ CONTENT EDITOR -->
+        <div id="setSecFaqs" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px;">
+              💬 Customer Support & FAQ Content Editor
+           </h3>
+           <p style="font-size:11px; color:#64748b; margin-bottom:12px;">Edit contact helpline details and FAQs displayed when customers open Customer Support from the sidebar menu.</p>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Helpline Phone No.</label>
+                 <input type="text" id="setSupportPhone" placeholder="+91 98765 43210" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px;">
+              </div>
+              <div>
+                 <label style="font-size:11px; font-weight:700; color:#475569;">Support Email Address</label>
+                 <input type="text" id="setSupportEmail" placeholder="support@aaharshreenaturals.com" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px;">
+              </div>
+           </div>
+
+           <div style="margin-bottom:10px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Kitchen / HQ Physical Address</label>
+              <input type="text" id="setSupportAddress" placeholder="AaharShree Natural Kitchens, Pune, Maharashtra" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px;">
+           </div>
+
+           <div style="margin-bottom:14px;">
+              <label style="font-size:11px; font-weight:700; color:#475569;">Working Operating Hours</label>
+              <input type="text" id="setSupportHours" placeholder="Mon - Sat: 9:00 AM - 8:00 PM IST" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px;">
+           </div>
+
+           <div style="border-top:1px solid #f1f5f9; padding-top:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                 <strong style="font-size:12px; color:#1e293b;">❓ Managed FAQ Questions & Answers</strong>
+                 <button type="button" onclick="addNewFaqItemAdmin()" style="background:#0b6e38; color:white; border:none; padding:4px 10px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">+ Add Question</button>
+              </div>
+              <div id="adminFaqListContainer" style="display:flex; flex-direction:column; gap:8px;">
+                 <!-- FAQ items loaded dynamically -->
+              </div>
+           </div>
+        </div>
+
+        <!-- SECTION 5: SIDEBAR HAMBURGER MENU CUSTOMIZER -->
+        <div id="setSecSidebar" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px;">
+           <h3 style="color:var(--primary); font-size:14px; margin-bottom:12px; border-bottom:1px solid #f0f0f0; padding-bottom:8px; display:flex; align-items:center; gap:6px;">
+              🍔 Sidebar Hamburger Menu Customizer
+           </h3>
+           <p style="font-size:11px; color:#64748b; margin-bottom:12px;">Edit menu labels, icons, spelling, or toggle links shown in the customer left navigation slider.</p>
+
+           <div id="adminSidebarConfigContainer" style="display:flex; flex-direction:column; gap:8px;">
+              <!-- Sidebar items loaded dynamically -->
+           </div>
+        </div>
+
+        <!-- SECTION: CLEAN FOOD VISION & TRUST PILLS MANAGER (TIER 1 / MASTER OWNER ONLY) -->
+        <div id="setSecVision" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px; border:1px solid #bbf7d0;">
+           
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #f0fdf4; padding-bottom:10px;">
+              <div>
+                 <h3 style="color:#166534; font-size:15px; margin:0 0 2px 0; display:flex; align-items:center; gap:6px; font-weight:900;">
+                    🌿 Clean Food Vision & Artisan Story Customizer
+                 </h3>
+                 <span style="font-size:11px; color:#15803d; font-weight:700;">Edit vision articles, artisan craftswomen profiles, photos & customer reviews</span>
+              </div>
+              <span style="font-size:10px; font-weight:900; background:#fef08a; color:#854d0e; padding:4px 10px; border-radius:10px; border:1px solid #fde047;">👑 Master Owner Access Only</span>
+           </div>
+
+           <!-- Mode Switcher Sub-Tabs -->
+           <div style="display:flex; gap:8px; margin-bottom:16px;">
+              <button type="button" id="visionSubTabPillsBtn" onclick="switchVisionSubTab('pills')" style="flex:1; padding:10px; border-radius:12px; font-size:12px; font-weight:800; border:1px solid #0b6e38; background:#0b6e38; color:white; cursor:pointer;">
+                 🌿 Clean Food Vision Pills
+              </button>
+              <button type="button" id="visionSubTabArtisanBtn" onclick="switchVisionSubTab('artisan')" style="flex:1; padding:10px; border-radius:12px; font-size:12px; font-weight:800; border:1px solid #fecdd3; background:#fff1f2; color:#be123c; cursor:pointer;">
+                 👵❤️ Artisan Craftswomen & Reviews
+              </button>
+           </div>
+
+           <!-- SUB-CONTAINER 1: VISION BLOG PILLS -->
+           <div id="visionSubSecPills" style="display:block;">
+              <div style="margin-bottom:14px;">
+                 <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:6px;">Select Vision Topic Article to Edit:</label>
+                 <select id="adminVisionTopicSelect" onchange="loadAdminVisionTopic(this.value)" style="width:100%; padding:10px; border-radius:10px; border:1.5px solid #0b6e38; font-size:13px; font-weight:800; color:#0f172a; background:#f0fdf4; outline:none;">
+                    <option value="zero-preservatives">🌿 Zero Synthetic Preservatives</option>
+                    <option value="zero-palm-oil">🌴 Zero Palm Oil & Cheap Oils</option>
+                    <option value="pure-mustard-oil">🫒 Pure Cold-Pressed Mustard Oil</option>
+                    <option value="sun-cured">☀️ Sun-Cured Solar Fermentation</option>
+                    <option value="glass-jar">🏺 Traditional Glass Jar Packaging</option>
+                    <option value="pure-spices">🌶️ Stone Ground Whole Spices</option>
+                 </select>
+              </div>
+
+              <!-- Edit Vision Form Fields -->
+              <div id="adminVisionFormContainer" style="display:flex; flex-direction:column; gap:12px; background:#f8fafc; padding:16px; border-radius:14px; border:1px solid #e2e8f0;">
+                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                    <div>
+                       <label style="font-size:11px; font-weight:700; color:#475569;">Pill Title</label>
+                       <input type="text" id="adminVisionTitle" placeholder="e.g. Zero Synthetic Preservatives" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-weight:700;">
+                    </div>
+                    <div>
+                       <label style="font-size:11px; font-weight:700; color:#475569;">Badge Text</label>
+                       <input type="text" id="adminVisionBadge" placeholder="e.g. 100% Chemical-Free" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-weight:700;">
+                    </div>
+                 </div>
+
+                 <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569;">Subtitle / Header Tagline</label>
+                    <input type="text" id="adminVisionSubtitle" placeholder="Why commercial brands flood pickles with..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-weight:700;">
+                 </div>
+
+                 <div>
+                    <label style="font-size:11px; font-weight:800; color:#991b1b;">⚠️ Commercial Market Practice (The Problem)</label>
+                    <textarea id="adminVisionCommercial" rows="2" placeholder="Describe what commercial factory pickles do..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #fecaca; background:#fff5f5; font-size:12px; font-weight:600; resize:none;"></textarea>
+                 </div>
+
+                 <div>
+                    <label style="font-size:11px; font-weight:800; color:#166534;">🌿 AaharShree Uncompromising Commitment (Our Solution)</label>
+                    <textarea id="adminVisionAaharshree" rows="2" placeholder="Describe AaharShree's natural traditional method..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #bbf7d0; background:#f0fdf4; font-size:12px; font-weight:600; resize:none;"></textarea>
+                 </div>
+
+                 <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569;">Full Vision Blog Article Body Text</label>
+                    <textarea id="adminVisionBody" rows="5" placeholder="Detailed story of traditional pickle making..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; line-height:1.5; font-family:inherit;"></textarea>
+                 </div>
+
+                 <div>
+                    <label style="font-size:11px; font-weight:700; color:#475569;">Key Highlights (One per line)</label>
+                    <textarea id="adminVisionHighlights" rows="3" placeholder="❌ Commercial: ...&#10;✅ AaharShree: ..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-family:monospace; resize:none;"></textarea>
+                 </div>
+
+                 <button type="button" onclick="saveAdminVisionPill()" style="background:#0b6e38; color:white; border:none; padding:12px; border-radius:10px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(11,110,56,0.2);">
+                    💾 Update & Save Vision Pill Article
+                 </button>
+              </div>
+           </div>
+
+           <!-- SUB-CONTAINER 2: ARTISAN CRAFTSWOMEN & CUSTOMER REVIEWS -->
+           <div id="visionSubSecArtisan" style="display:none; flex-direction:column; gap:16px;">
+              <!-- 1. General Header Details -->
+              <div style="background:#fff1f2; padding:14px; border-radius:14px; border:1px solid #ffe4e6;">
+                 <h4 style="margin:0 0 8px 0; font-size:13px; font-weight:900; color:#be123c;">📖 Kitchen Story Banner & Headlines</h4>
+                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:8px;">
+                    <div>
+                       <label style="font-size:11px; font-weight:700; color:#881337;">Banner Main Title</label>
+                       <input type="text" id="adminArtisanTitle" placeholder="Handcrafted with Love..." style="width:100%; padding:8px; border-radius:8px; border:1px solid #fecdd3; font-size:12px; font-weight:700;">
+                    </div>
+                    <div>
+                       <label style="font-size:11px; font-weight:700; color:#881337;">Hero Badge Text</label>
+                       <input type="text" id="adminArtisanBadge" placeholder="Ghar Ki Rasoi Heritage" style="width:100%; padding:8px; border-radius:8px; border:1px solid #fecdd3; font-size:12px; font-weight:700;">
+                    </div>
+                 </div>
+                 <div style="margin-bottom:8px;">
+                    <label style="font-size:11px; font-weight:700; color:#881337;">Subtitle / Tagline</label>
+                    <input type="text" id="adminArtisanSubtitle" placeholder="Meet the Rural Mothers..." style="width:100%; padding:8px; border-radius:8px; border:1px solid #fecdd3; font-size:12px; font-weight:700;">
+                 </div>
+                 <div>
+                    <label style="font-size:11px; font-weight:700; color:#881337;">Main Story Introduction Paragraph</label>
+                    <textarea id="adminArtisanIntro" rows="3" placeholder="Every jar of AaharShree is..." style="width:100%; padding:8px; border-radius:8px; border:1px solid #fecdd3; font-size:12px; line-height:1.4;"></textarea>
+                 </div>
+              </div>
+
+              <!-- 2. Master Artisan Craftswomen Profiles (Photos + Content) -->
+              <div style="background:#f8fafc; padding:14px; border-radius:14px; border:1px solid #e2e8f0;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="margin:0; font-size:13px; font-weight:900; color:#0f172a;">👵 Master Artisan Craftswomen & Photos</h4>
+                    <button type="button" onclick="addAdminArtisanProfileCard()" style="background:#be123c; color:white; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                       ➕ Add New Artisan Mother
+                    </button>
+                 </div>
+                 <p style="font-size:11px; color:#64748b; margin:0 0 12px 0;">Customize each artisan's photo, name, role, experience, and wisdom quote. Choose from sample photo presets or paste your own image URL!</p>
+                 
+                 <div id="adminArtisanProfilesList" style="display:flex; flex-direction:column; gap:12px;">
+                    <!-- Dynamically populated profile cards -->
+                 </div>
+              </div>
+
+              <!-- 3. Customer Reviews & Testimonials System -->
+              <div style="background:#f0fdf4; padding:14px; border-radius:14px; border:1px solid #bbf7d0;">
+                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <h4 style="margin:0; font-size:13px; font-weight:900; color:#166534;">💌 Best Customer Reviews & Blessings System</h4>
+                    <span style="font-size:10px; font-weight:800; background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:6px;">Live Reviews Manager</span>
+                 </div>
+                 <p style="font-size:11px; color:#15803d; margin:0 0 12px 0;">Manage customer reviews displayed on the store. Feature top customer reviews or delete old ones!</p>
+
+                 <!-- Live Reviews List -->
+                 <div id="adminGratitudeNotesList" style="display:flex; flex-direction:column; gap:8px; margin-bottom:14px;">
+                    <!-- Dynamically populated reviews -->
+                 </div>
+
+                 <!-- Add New Review Form -->
+                 <div style="background:white; border:1px solid #86efac; border-radius:12px; padding:12px;">
+                    <h5 style="margin:0 0 8px 0; font-size:12px; font-weight:800; color:#166534;">➕ Add Featured Customer Review directly from Admin</h5>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px;">
+                       <input type="text" id="adminNewReviewName" placeholder="Customer Name (e.g. Priya Sharma)" style="padding:7px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px;">
+                       <input type="text" id="adminNewReviewLocation" placeholder="Location / City (e.g. Bengaluru)" style="padding:7px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px;">
+                    </div>
+                    <textarea id="adminNewReviewMessage" rows="2" placeholder="Write customer review or blessing..." style="width:100%; padding:7px; border-radius:6px; border:1px solid #cbd5e1; font-size:11px; margin-bottom:8px; resize:none;"></textarea>
+                    <button type="button" onclick="addAdminCustomerReview()" style="background:#0b6e38; color:white; border:none; padding:8px 14px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                       ➕ Add Featured Review
+                    </button>
+                 </div>
+              </div>
+
+              <!-- Save Artisan Heritage & Reviews Button -->
+              <button type="button" onclick="saveAdminArtisanStoryAndReviews()" style="background:#be123c; color:white; border:none; padding:14px; border-radius:12px; font-size:13px; font-weight:900; cursor:pointer; box-shadow:0 4px 12px rgba(190,18,60,0.25);">
+                 💾 Save Complete Artisan Profiles, Photos & Customer Reviews System
+              </button>
+           </div>
+        </div>
+
+        <!-- SECTION 6: GOOGLE SHEET BACKEND & MEDIA FILE CONTENT MANAGER -->
+        <div id="setSecSheetcontent" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px; border:1px solid #e2e8f0;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h3 style="color:#0b6e38; font-size:14px; margin:0; display:flex; align-items:center; gap:6px; font-weight:800;">
+                 📸 Google Sheet Backend & Media File Content Manager
+              </h3>
+              <span style="font-size:10px; font-weight:800; background:#dcfce7; color:#166534; padding:2px 8px; border-radius:6px;">Dynamic Store</span>
+           </div>
+           <p style="font-size:11px; color:#64748b; margin-bottom:14px; line-height:1.4;">
+              Replace hardcoded product images and default descriptions with dynamic data uploaded from Google Sheet CSV exports or local photo files.
+           </p>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:15px;">
+              <button type="button" onclick="openSheetUploadModal(); showScreen('productsAdminScreen');" style="padding:12px; background:#0b6e38; color:white; border:none; border-radius:12px; font-weight:800; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 10px rgba(11,110,56,0.2);">
+                 <span>📁</span> Drag & Drop CSV / Images
+              </button>
+              <button type="button" onclick="openBulkContentReplacerModal(); showScreen('productsAdminScreen');" style="padding:12px; background:#1e293b; color:white; border:none; border-radius:12px; font-weight:800; font-size:12px; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 3px 10px rgba(30,41,59,0.2);">
+                 <span>🖼️</span> Bulk Edit Images & Copy
+              </button>
+           </div>
+
+           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+              <div style="font-size:11px; font-weight:800; color:#334155; margin-bottom:6px;">📊 Google Sheet Catalog Status</div>
+              <div style="font-size:11px; color:#475569; display:flex; flex-direction:column; gap:4px;">
+                 <div>• <b>Backend RPC Endpoint:</b> <code style="background:#e2e8f0; padding:1px 4px; border-radius:4px;">getAllProducts</code> / <code style="background:#e2e8f0; padding:1px 4px; border-radius:4px;">importProductsFromSheet</code></div>
+                 <div>• <b>Supported Header Fields:</b> ProductID, Name, Category, MRP, OfferPrice, Weight, Stock, Image1, Description</div>
+                 <div>• <b>File Types:</b> .CSV, .JSON, .JPG, .PNG, .WEBP</div>
+              </div>
+           </div>
+        </div>
+
+        <!-- SECTION 6: STORE OPERATIONS & MAINTENANCE CONTROL + SIMULATOR -->
+        <div id="setSecOps" class="settingsSec" style="display:none; background:white; border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:15px; border:1px solid #e2e8f0;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <h3 style="color:#0f172a; font-size:14px; margin:0; display:flex; align-items:center; gap:6px; font-weight:800;">
+                 ⚙️ Store Operations & Maintenance Control
+              </h3>
+              <span style="font-size:10px; font-weight:700; background:#f1f5f9; color:#475569; padding:2px 8px; border-radius:6px;">Master Control</span>
+           </div>
+           <p style="font-size:11px; color:#64748b; margin-bottom:12px; line-height:1.4;">
+              Toggle online store availability. When maintenance mode is active, customers can browse products but checkout and new order placements are temporarily paused.
+           </p>
+
+           <div id="settingsMasterShutdownArea" style="margin-bottom:18px;">
+              <!-- Rendered dynamically by SettingsJS.html -->
+           </div>
+
+           <!-- LIVE CHECKOUT SIMULATOR CARD -->
+           <div style="background:#f8fafc; border:1.5px dashed #cbd5e1; border-radius:18px; padding:16px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                 <h4 style="font-size:13px; font-weight:800; color:#1e293b; margin:0;">⚡ Live Checkout Calculator Simulator</h4>
+                 <span style="font-size:10px; font-weight:700; background:#e2e8f0; color:#475569; padding:2px 8px; border-radius:10px;">Real-time Test</span>
+              </div>
+              <p style="font-size:11px; color:#64748b; margin-bottom:12px;">Test how your rules will be implemented for a customer at checkout right now:</p>
+
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:12px;">
+                 <label style="font-size:11px; font-weight:700; color:#334155;">Simulated Cart Subtotal: ₹</label>
+                 <input type="number" id="simCartAmount" value="600" oninput="updateSettingsSimulator()" style="width:80px; padding:6px; border-radius:6px; border:1px solid #cbd5e1; font-weight:700; font-size:12px;">
+              </div>
+
+              <div style="background:white; border-radius:12px; padding:12px; border:1px solid #e2e8f0; font-size:12px; line-height:1.6;">
+                 <div style="display:flex; justify-content:space-between;">
+                    <span style="color:#64748b;">Cart Subtotal:</span>
+                    <span id="simValSubtotal" style="font-weight:700;">₹600</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between;">
+                    <span style="color:#64748b;">Delivery Fee:</span>
+                    <span id="simValDelivery" style="font-weight:700; color:#16a34a;">FREE</span>
+                 </div>
+                 <div style="display:flex; justify-content:space-between;">
+                    <span style="color:#64748b;">UPI Instant Discount:</span>
+                    <span id="simValUpiDiscount" style="font-weight:700; color:#dc2626;">-₹225</span>
+                 </div>
+                 <hr style="margin:8px 0; border:none; border-top:1px solid #f1f5f9;">
+                 <div style="display:flex; justify-content:space-between; font-weight:800; font-size:13px; color:#0f172a;">
+                    <span>Net Payable via UPI:</span>
+                    <span id="simValNetPayable" style="color:var(--primary);">₹375</span>
+                 </div>
+                 <div id="simValStatusNote" style="margin-top:8px; font-size:10px; font-weight:700; color:#15803d; background:#f0fdf4; padding:6px; border-radius:6px; text-align:center;">
+                    ✅ Meets Min Order Limit (₹299) & qualifies for FREE delivery (above ₹500).
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        <button type="submit" class="primaryButton" style="width:100%; padding:14px; font-size:15px; font-weight:800; cursor:pointer;">
+           💾 Save Configuration
+        </button>
+     </form>
+
+  </div>
+</div>

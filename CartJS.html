@@ -1,0 +1,138 @@
+<script>
+let cart = [];
+
+window.loadCart = function() {
+    const saved = localStorage.getItem("cart");
+    cart = saved ? JSON.parse(saved) : [];
+    updateCartBadge();
+};
+
+function saveCart() {
+    localStorage.setItem("cart", JSON.stringify(cart));
+    updateCartBadge();
+}
+
+window.addToCart = function(item, showDrawer = true) {
+    const isMaintenance = localStorage.getItem("app_maintenance_mode") === "true";
+    if (isMaintenance) {
+        alert("⚠️ Store Maintenance Mode Active:\nAaharShree Naturals is currently undergoing system maintenance by the Master Admin.\n\nOnline cart additions and checkout are temporarily paused. Please try again shortly!");
+        return;
+    }
+
+    const vId = item.variantId || (item.productId + "_" + (item.weight || 'std'));
+    const existing = cart.find(p => p.variantId == vId);
+    if (existing) {
+        existing.qty += item.quantity || item.qty || 1;
+        if (item.isPreOrder) existing.isPreOrder = true;
+        if (item.isBulk) existing.isBulk = true;
+    } else {
+        cart.push({
+            productId: item.productId || item.id,
+            variantId: vId,
+            name: item.name,
+            weight: item.weight,
+            price: Number(item.price),
+            image: item.image || "",
+            qty: item.quantity || item.qty || 1,
+            isPreOrder: !!item.isPreOrder,
+            isBulk: !!item.isBulk
+        });
+    }
+    saveCart();
+    if (showDrawer) window.showCartDrawer(item);
+};
+
+window.showCartDrawer = function(item) {
+    const drawer = document.getElementById("cartDrawer");
+    if (!drawer) return;
+
+    // Fixed image and text
+    document.getElementById("drawerProdImg").src = item.image || "";
+    document.getElementById("drawerProdName").innerHTML = item.name;
+    document.getElementById("drawerProdDetails").innerHTML = (item.quantity || 1) + " x " + item.weight + " added";
+    
+    drawer.classList.add("active");
+    setTimeout(window.closeCartDrawer, 4000);
+};
+
+window.closeCartDrawer = function() {
+    const drawer = document.getElementById("cartDrawer");
+    if (drawer) drawer.classList.remove("active");
+};
+
+window.showCart = function() {
+    window.closeCartDrawer();
+    showScreen("cartScreen");
+    window.renderCart();
+};
+
+window.renderCart = function() {
+    const container = document.getElementById("cartItems");
+    if (!container) return;
+
+    if (cart.length === 0) {
+        container.innerHTML = `<div style="padding:80px 20px; text-align:center;"><h1 style="font-size:60px;">🛒</h1><h3>Your cart is empty</h3><button class="primaryButton" style="margin-top:20px;" onclick="showScreen('homeScreen')">Start Shopping</button></div>`;
+        return;
+    }
+
+    let html = "";
+    let total = 0;
+    let hasPreOrderOrBulk = false;
+
+    cart.forEach(item => {
+        const itemTotal = item.price * item.qty;
+        total += itemTotal;
+        if (item.isPreOrder || item.isBulk) hasPreOrderOrBulk = true;
+
+        const tagBadge = item.isPreOrder 
+            ? `<span style="font-size:9px; font-weight:800; background:#fef3c7; color:#92400e; padding:2px 6px; border-radius:6px; margin-left:6px;">🏺 PRE-ORDER</span>`
+            : item.isBulk 
+            ? `<span style="font-size:9px; font-weight:800; background:#e0e7ff; color:#3730a3; padding:2px 6px; border-radius:6px; margin-left:6px;">📦 BULK ITEM</span>`
+            : '';
+
+        html += `
+        <div class="cartItemCard" style="display:flex; align-items:center; gap:15px; margin:10px 15px;">
+            <img src="${item.image}" style="width:60px; height:60px; border-radius:12px; object-fit:cover;" onerror="this.src='https://via.placeholder.com/100'">
+            <div style="flex-grow:1;">
+                <div style="font-weight:700; font-size:14px; display:flex; align-items:center;">
+                    <span>${item.name}</span>
+                    ${tagBadge}
+                </div>
+                <div style="font-size:11px; color:#777;">${item.weight} | ₹${item.price}</div>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:5px;">
+                    <button onclick="changeQty('${item.variantId}', -1)" style="width:24px; height:24px; border:none; border-radius:5px;">-</button>
+                    <span style="font-weight:800; font-size:14px;">${item.qty}</span>
+                    <button onclick="changeQty('${item.variantId}', 1)" style="width:24px; height:24px; border:none; border-radius:5px;">+</button>
+                </div>
+            </div>
+            <div style="font-weight:800; color:var(--primary);">₹${itemTotal}</div>
+        </div>`;
+    });
+
+    if (hasPreOrderOrBulk) {
+        html += `
+        <div style="margin:10px 15px; padding:10px 12px; background:#fff7ed; border:1px solid #fdba74; border-radius:10px; font-size:11px; color:#c2410c; font-weight:700;">
+            ⚡ <strong>Terms Applied:</strong> Advance online payment (UPI) is mandatory for Pre-Orders / Bulk items (No COD). No promotional discounts apply on these items.
+        </div>`;
+    }
+
+    html += `<div style="padding:20px; border-top:1px solid #eee; margin-top:10px;"><div style="display:flex; justify-content:space-between; font-size:18px; font-weight:800; margin-bottom:20px;"><span>Total</span><span>₹${total}</span></div><button class="primaryButton" onclick="openCheckout()">Proceed to Checkout</button></div>`;
+    container.innerHTML = html;
+};
+
+window.changeQty = function(vId, change) {
+    const item = cart.find(p => p.variantId == vId);
+    if (item) {
+        item.qty += change;
+        if (item.qty <= 0) cart = cart.filter(p => p.variantId != vId);
+        saveCart();
+        renderCart();
+    }
+};
+
+window.updateCartBadge = function() {
+    const count = cart.reduce((acc, item) => acc + item.qty, 0);
+    const badges = document.querySelectorAll("#cartBadge");
+    badges.forEach(b => { b.innerHTML = count; b.style.display = count > 0 ? "block" : "none"; });
+};
+</script>

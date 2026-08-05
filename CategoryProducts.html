@@ -1,0 +1,65 @@
+<div id="categoryProductsScreen" class="screen">
+  <!-- TOP BAR HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="showScreen('homeScreen'); loadHome();" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div>
+        <div id="catProdHeaderTitle" class="brand-name" style="color: white; font-size:16px;">Category Products</div>
+        <div id="catProdHeaderCount" style="font-size:10px; color:rgba(255,255,255,0.85);">Pure & Traditional Homemade Selection</div>
+      </div>
+    </div>
+    <button onclick="showCart()" class="header-icon-circle-btn" style="position:relative; background:rgba(255,255,255,0.2); border:none; color:white;" title="Cart">
+      🛒
+      <span id="catProdCartBadge" class="header-cart-badge">0</span>
+    </button>
+  </header>
+
+  <div style="padding:15px; padding-bottom:110px; max-width:600px; margin:0 auto;">
+    
+    <!-- CATEGORY BANNER HEADER CARD -->
+    <div id="catBannerCard" style="background:white; border-radius:20px; overflow:hidden; box-shadow:var(--shadow); margin-bottom:14px; border:1px solid #f0f0f0; display:flex; align-items:center; position:relative;">
+       <div style="width:110px; height:110px; shrink:0; overflow:hidden; position:relative; background:#f8fafc;">
+          <img id="catBannerImg" src="https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500" alt="Category" style="width:100%; height:100%; object-fit:cover;">
+       </div>
+       <div style="padding:14px; flex:1;">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+             <span style="font-size:10px; font-weight:800; background:#d1fae5; color:#065f46; padding:2px 8px; border-radius:6px;">100% HOMEMADE</span>
+          </div>
+          <h2 id="catBannerTitle" style="font-size:16px; font-weight:900; color:#111827; margin:0;">Mango Pickles</h2>
+          <p id="catBannerDesc" style="font-size:11px; color:#64748b; margin:4px 0 0 0; line-height:1.4;">Traditional sun-aged pickles prepared in pure mustard oil.</p>
+       </div>
+    </div>
+
+    <!-- QUICK CATEGORY SWITCH CHIPS ROW -->
+    <div id="categoryChipsRow" style="display:flex; gap:6px; overflow-x:auto; padding-bottom:10px; margin-bottom:10px;">
+       <!-- Populated dynamically -->
+    </div>
+
+    <!-- SEARCH & SORT BAR -->
+    <div style="margin-bottom:14px; display:flex; gap:8px;">
+       <div style="flex:1; position:relative;">
+          <input type="text" id="catProdSearchInput" placeholder="Search in this category..." onkeyup="filterCatProductsList()"
+                 style="width:100%; padding:10px 12px; border-radius:12px; border:1px solid #cbd5e1; font-size:12px; background:white;">
+       </div>
+       <select id="catProdSortSelect" onchange="filterCatProductsList()" style="padding:10px; border-radius:12px; border:1px solid #cbd5e1; font-size:11px; font-weight:700; background:white; color:#334155;">
+          <option value="RECOMMENDED">✨ Recommended</option>
+          <option value="PRICE_LOW">Price: Low to High</option>
+          <option value="PRICE_HIGH">Price: High to Low</option>
+       </select>
+    </div>
+
+    <!-- PRODUCTS GRID -->
+    <div id="catProductsGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+       <div style="grid-column:1 / -1; text-align:center; padding:40px; color:#94a3b8; font-size:12px;">
+          Loading category products...
+       </div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item active" onclick="showScreen('homeScreen'); loadHome();"><span>🏠</span>Home</button>
+    <button class="nav-item" onclick="showCart()"><span>🛒</span>Cart</button>
+    <button class="nav-item" onclick="openProfile()"><span>👤</span>Profile</button>
+  </nav>
+</div>

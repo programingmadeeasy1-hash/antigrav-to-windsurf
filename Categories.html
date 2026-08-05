@@ -1,0 +1,154 @@
+<div id="categoriesScreen" class="screen">
+  <!-- TOP BAR HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="showScreen('dashboardScreen')" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div>
+        <div class="brand-name" style="color: white; font-size: 16px;">Category Management</div>
+        <small style="color: rgba(255,255,255,0.8); font-size:11px;">Organize product catalog & store navigation</small>
+      </div>
+    </div>
+    <button onclick="openCategoryForm()" style="background: white; color: var(--primary-dark); border: none; padding: 7px 14px; border-radius: 20px; font-weight: 800; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15);">
+      + Add Category
+    </button>
+  </header>
+
+  <div style="padding: 15px; padding-bottom: 110px;">
+
+    <!-- SUMMARY METRICS BAR -->
+    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-bottom: 16px;">
+      <div style="background: white; border-radius: 14px; padding: 12px; text-align: center; box-shadow: var(--shadow); border: 1px solid #f0f0f0;">
+        <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase;">Total</span>
+        <h3 id="catMetricTotal" style="font-size: 18px; font-weight: 900; color: var(--primary-dark); margin-top: 2px;">0</h3>
+      </div>
+      <div style="background: white; border-radius: 14px; padding: 12px; text-align: center; box-shadow: var(--shadow); border: 1px solid #f0f0f0;">
+        <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase;">Active</span>
+        <h3 id="catMetricActive" style="font-size: 18px; font-weight: 900; color: #0b6e38; margin-top: 2px;">0</h3>
+      </div>
+      <div style="background: white; border-radius: 14px; padding: 12px; text-align: center; box-shadow: var(--shadow); border: 1px solid #f0f0f0;">
+        <span style="font-size: 10px; font-weight: 800; color: #888; text-transform: uppercase;">Products</span>
+        <h3 id="catMetricProducts" style="font-size: 18px; font-weight: 900; color: #2563eb; margin-top: 2px;">0</h3>
+      </div>
+    </div>
+
+    <!-- SEARCH & FILTER BAR -->
+    <div style="margin-bottom: 14px; display: flex; gap: 8px;">
+      <div style="flex: 1; position: relative;">
+        <input type="text" id="catSearchInput" placeholder="🔍 Search categories..." onkeyup="filterCategoriesList()"
+               style="width: 100%; padding: 11px 14px; border-radius: 12px; border: 1px solid #ddd; font-size: 13px; background: white; box-shadow: var(--shadow);">
+      </div>
+      <button onclick="loadCategories()" style="background: white; border: 1px solid #ddd; padding: 11px 14px; border-radius: 12px; font-size: 13px; cursor: pointer;" title="Refresh">
+        🔄
+      </button>
+    </div>
+
+    <!-- CATEGORIES LIST GRID CONTAINER -->
+    <div id="categoryList" style="display: flex; flex-direction: column; gap: 12px;">
+      <div style="text-align: center; padding: 40px; background: white; border-radius: 16px; color: #999;">
+        Loading categories...
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CREATE / EDIT CATEGORY MODAL -->
+  <div id="categoryFormModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; padding:15px;">
+    <div style="background:white; border-radius:20px; width:100%; max-width:460px; padding:22px; box-shadow:0 10px 30px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #eee; padding-bottom:10px;">
+        <h3 id="catModalTitle" style="color:var(--primary-dark); font-size:16px; font-weight:800;">Create New Product Category</h3>
+        <button onclick="closeCategoryForm()" style="background:none; border:none; font-size:22px; color:#888; cursor:pointer;">✕</button>
+      </div>
+
+      <form id="categoryForm" onsubmit="event.preventDefault(); saveCategory();">
+        <input type="hidden" id="catId">
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Category Name*</label>
+          <input type="text" id="catName" required placeholder="e.g. Mango Pickles" oninput="updateCategoryPreview()" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:13px;">
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Category Banner / Image URL*</label>
+          <div style="display:flex; gap:6px; margin-bottom:6px;">
+            <input type="text" id="catImageUrl" required placeholder="Paste image URL or choose preset" oninput="updateCategoryPreview()" style="flex:1; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:13px;">
+            <label style="background:var(--primary); color:white; padding:10px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:4px;">
+              📁 Upload
+              <input type="file" id="catImageFileInput" accept="image/*" onchange="handleCatImageUpload(this)" style="display:none;">
+            </label>
+          </div>
+
+          <!-- QUICK CATEGORY IMAGE PRESET CHIPS -->
+          <div style="font-size:10px; font-weight:800; color:#64748b; margin-bottom:4px;">QUICK IMAGE PRESETS:</div>
+          <div style="display:flex; gap:6px; overflow-x:auto; padding-bottom:4px;">
+            <button type="button" onclick="selectCatImgPreset('https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500', '🥭')" style="border:1px solid #e2e8f0; background:white; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">🥭 Mango Jar</button>
+            <button type="button" onclick="selectCatImgPreset('https://images.unsplash.com/photo-1590005354167-6da97870c757?w=500', '🍋')" style="border:1px solid #e2e8f0; background:white; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">🍋 Lemon Jar</button>
+            <button type="button" onclick="selectCatImgPreset('https://images.unsplash.com/photo-1615485290382-441e4d049cb5?w=500', '🌶️')" style="border:1px solid #e2e8f0; background:white; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">🌶️ Red Chili</button>
+            <button type="button" onclick="selectCatImgPreset('https://images.unsplash.com/photo-1599909631369-02eb644910e5?w=500', '🏺')" style="border:1px solid #e2e8f0; background:white; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">🏺 Special Barni</button>
+            <button type="button" onclick="selectCatImgPreset('https://images.unsplash.com/photo-1608571423902-eed4a5ad8108?w=500', '🍯')" style="border:1px solid #e2e8f0; background:white; padding:4px 8px; border-radius:8px; font-size:10px; font-weight:700; cursor:pointer; white-space:nowrap;">🍯 Ghee & Oils</button>
+          </div>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Icon / Emoji (Optional Badge)</label>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input type="text" id="catIcon" placeholder="e.g. 🥭" oninput="updateCategoryPreview()" style="width:70px; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:18px; text-align:center;">
+            
+            <!-- QUICK EMOJI SELECTION CHIPS -->
+            <div style="display:flex; gap:5px; overflow-x:auto; padding:2px;">
+              <button type="button" onclick="selectCatEmoji('🥭')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🥭</button>
+              <button type="button" onclick="selectCatEmoji('🍋')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🍋</button>
+              <button type="button" onclick="selectCatEmoji('🌶️')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🌶️</button>
+              <button type="button" onclick="selectCatEmoji('🏺')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🏺</button>
+              <button type="button" onclick="selectCatEmoji('🍯')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🍯</button>
+              <button type="button" onclick="selectCatEmoji('🌿')" style="border:1px solid #eee; background:#f9fafb; padding:6px 9px; border-radius:8px; font-size:16px; cursor:pointer;">🌿</button>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px;">
+          <div>
+            <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Display Priority</label>
+            <input type="number" id="catPriority" value="1" min="1" max="99" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:13px;">
+          </div>
+          <div>
+            <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Status</label>
+            <select id="catStatus" onchange="updateCategoryPreview()" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:13px;">
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="INACTIVE">INACTIVE</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Short Description</label>
+          <textarea id="catDescription" rows="2" placeholder="e.g. Homemade traditional raw mango pickles in mustard oil" oninput="updateCategoryPreview()" style="width:100%; padding:10px; border-radius:10px; border:1px solid #ccc; font-size:13px;"></textarea>
+        </div>
+
+        <!-- LIVE PREVIEW CARD -->
+        <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:14px; padding:12px; margin-bottom:16px;">
+          <div style="font-size:10px; font-weight:800; color:#64748b; text-transform:uppercase; margin-bottom:6px;">LIVE APP PREVIEW</div>
+          <div style="display:flex; align-items:center; gap:12px; background:white; padding:10px; border-radius:12px; box-shadow:0 2px 5px rgba(0,0,0,0.05); border:1px solid #f1f5f9;">
+            <div style="position:relative; width:52px; height:52px; border-radius:10px; overflow:hidden; shrink:0; border:1px solid #e2e8f0; background:#f1f5f9;">
+              <img id="prevCatImg" src="https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500" style="width:100%; height:100%; object-fit:cover;">
+              <span id="prevCatIconBadge" style="position:absolute; bottom:2px; right:2px; font-size:12px; background:rgba(255,255,255,0.9); border-radius:50%; padding:2px;">🥭</span>
+            </div>
+            <div style="flex:1;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <strong id="prevCatName" style="font-size:13px; color:#222;">Mango Pickles</strong>
+                <span id="prevCatBadge" style="font-size:9px; font-weight:800; padding:2px 6px; border-radius:8px; background:#d1fae5; color:#065f46;">ACTIVE</span>
+              </div>
+              <p id="prevCatDesc" style="font-size:11px; color:#666; margin-top:2px; margin-bottom:0;">Homemade traditional raw mango pickles</p>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px;">
+          <button type="button" onclick="closeCategoryForm()" style="flex:1; padding:12px; border-radius:10px; border:1px solid #ccc; background:#f5f5f5; font-weight:700; cursor:pointer;">Cancel</button>
+          <button type="submit" id="saveCatBtn" onclick="saveCategory(); return false;" class="primaryButton" style="flex:2; padding:12px; font-size:13px; font-weight:800; cursor:pointer;">💾 Save Category</button>
+        </div>
+      </form>
+
+    </div>
+  </div>
+</div>

@@ -1,0 +1,258 @@
+<script>
+let allCoupons = [];
+let autoCouponRules = [];
+let autoCouponApprovals = [];
+
+function loadCouponsAdmin() {
+  if (typeof showLoading === 'function') showLoading('Loading coupons...');
+  Promise.all([
+    server('getAllCoupons'),
+    server('getAutoCouponRules'),
+    server('getAutoCouponApprovals')
+  ]).then(([coupons, rules, approvals]) => {
+    if (typeof hideLoading === 'function') hideLoading();
+    allCoupons = Array.isArray(coupons) ? coupons : [];
+    autoCouponRules = Array.isArray(rules) ? rules : [];
+    autoCouponApprovals = Array.isArray(approvals) ? approvals : [];
+    renderCouponsList(allCoupons);
+    renderAutoCouponRulesList(autoCouponRules);
+    renderAutoCouponApprovalsList(autoCouponApprovals);
+  }).catch(err => {
+    if (typeof hideLoading === 'function') hideLoading();
+    console.error('Coupon load error:', err);
+    document.getElementById('couponsList').innerHTML = '<p style="color:red;">Failed to load coupons.</p>';
+  });
+}
+
+function renderAutoCouponRulesList(rules) {
+  const container = document.getElementById('autoCouponRulesList');
+  if (!container) return;
+
+  if (!rules.length) {
+    container.innerHTML = '<div style="text-align:center; color:#888; padding:24px 0;">No automatic regular-customer rules yet.</div>';
+    return;
+  }
+
+  let html = '';
+  rules.forEach(rule => {
+    html += `
+      <div style="border:1px solid #f1f5f9; border-radius:12px; padding:12px; margin-bottom:10px; background:#fffbeb;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-weight:800; color:#0f172a;">${rule.ruleName || 'Unnamed rule'}</div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px;">Eligible after ${rule.minOrders || 0} orders • ₹${rule.minSpend || 0} spend • ${rule.minDaysRegistered || 0} days</div>
+          </div>
+          <span style="background:${rule.active ? '#dcfce7' : '#fee2e2'}; color:${rule.active ? '#15803d' : '#b91c1c'}; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;">${rule.active ? 'ACTIVE' : 'INACTIVE'}</span>
+        </div>
+        <div style="font-size:11px; color:#64748b; margin-top:8px;">Coupon: ${rule.couponCode || '—'} • ${rule.discountType === 'FIXED' ? '₹' + rule.discountValue : rule.discountValue + '%'} off</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button onclick="editAutoCouponRule('${rule.id}')" style="flex:1; background:#f1f5f9; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Edit Rule</button>
+          <button onclick="deleteAutoCouponRule('${rule.id}')" style="flex:1; background:#fee2e2; color:#b91c1c; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Delete</button>
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function renderAutoCouponApprovalsList(items) {
+  const container = document.getElementById('autoCouponApprovalsList');
+  if (!container) return;
+
+  if (!items.length) {
+    container.innerHTML = '<div style="text-align:center; color:#888; padding:24px 0;">No approval requests yet.</div>';
+    return;
+  }
+
+  let html = '';
+  items.forEach(item => {
+    const stateColor = item.status === 'APPROVED' ? '#15803d' : item.status === 'REJECTED' ? '#b91c1c' : '#b45309';
+    html += `
+      <div style="border:1px solid #f1f5f9; border-radius:12px; padding:12px; margin-bottom:10px; background:#f8fafc;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-weight:800; color:#0f172a;">${item.customerName || item.customerId || 'Customer'}</div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px;">${item.reason || 'Eligibility matched'}</div>
+          </div>
+          <span style="background:${stateColor}; color:white; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;">${item.status || 'PENDING'}</span>
+        </div>
+        <div style="font-size:11px; color:#64748b; margin-top:8px;">Coupon: ${item.couponCode || '—'} • ${item.discountType === 'FIXED' ? '₹' + item.discountValue : item.discountValue + '%'} off</div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button onclick="approveAutoCouponRequest('${item.id}')" style="flex:1; background:#dcfce7; color:#15803d; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Approve</button>
+          <button onclick="rejectAutoCouponRequest('${item.id}')" style="flex:1; background:#fee2e2; color:#b91c1c; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Reject</button>
+        </div>
+      </div>`;
+    });
+
+  container.innerHTML = html;
+}
+
+function renderCouponsList(coupons) {
+  const container = document.getElementById('couponsList');
+  if (!container) return;
+
+  if (!coupons.length) {
+    container.innerHTML = '<div style="text-align:center; color:#888; padding:24px 0;">No coupons created yet.</div>';
+    return;
+  }
+
+  let html = '';
+  coupons.forEach(coupon => {
+    const badge = coupon.active ? '<span style="background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;">ACTIVE</span>' : '<span style="background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:999px; font-size:10px; font-weight:700;">INACTIVE</span>';
+    const discountLabel = coupon.discountType === 'FIXED' ? `₹${coupon.discountValue}` : `${coupon.discountValue}%`;
+    html += `
+      <div style="border:1px solid #f1f5f9; border-radius:12px; padding:12px; margin-bottom:10px; background:#fafafa;">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+          <div>
+            <div style="font-weight:800; color:#0f172a;">${coupon.code}</div>
+            <div style="font-size:12px; color:#64748b; margin-top:2px;">${discountLabel} off • Min ₹${coupon.minOrder}</div>
+          </div>
+          ${badge}
+        </div>
+        <div style="font-size:11px; color:#64748b; margin-top:8px;">
+          Expires: ${coupon.expiryDate || 'No expiry'} • Used ${coupon.usedCount || 0}/${coupon.maxUses || '∞'} times
+        </div>
+        <div style="font-size:11px; color:#64748b; margin-top:4px;">
+          ${coupon.allowedCustomers && coupon.allowedCustomers.length ? `Restricted to: ${coupon.allowedCustomers.join(', ')}` : 'Open to all customers'}
+        </div>
+        <div style="display:flex; gap:8px; margin-top:10px;">
+          <button onclick="editCoupon('${coupon.id}')" style="flex:1; background:#f1f5f9; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Edit</button>
+          <button onclick="deleteCouponItem('${coupon.id}')" style="flex:1; background:#fee2e2; color:#b91c1c; border:none; padding:8px 10px; border-radius:8px; font-weight:700;">Delete</button>
+        </div>
+      </div>`;
+  });
+
+  container.innerHTML = html;
+}
+
+function saveCouponFromForm() {
+  const payload = {
+    id: document.getElementById('couponId').value,
+    code: document.getElementById('couponCode').value,
+    discountType: document.getElementById('couponType').value,
+    discountValue: document.getElementById('couponValue').value,
+    minOrder: document.getElementById('couponMinOrder').value,
+    maxUses: document.getElementById('couponMaxUses').value,
+    maxUsesPerCustomer: document.getElementById('couponMaxUsesPerCustomer').value,
+    allowedCustomers: document.getElementById('couponAllowedCustomers').value,
+    expiryDate: document.getElementById('couponExpiry').value,
+    active: document.getElementById('couponActive').checked
+  };
+
+  if (!payload.code) {
+    alert('Coupon code is required.');
+    return;
+  }
+
+  if (typeof showLoading === 'function') showLoading('Saving coupon...');
+  server('saveCoupon', payload).then(() => {
+    if (typeof hideLoading === 'function') hideLoading();
+    resetCouponForm();
+    loadCouponsAdmin();
+    alert('Coupon saved successfully.');
+  }).catch(err => {
+    if (typeof hideLoading === 'function') hideLoading();
+    alert('Failed to save coupon: ' + (err.message || err));
+  });
+}
+
+function editCoupon(id) {
+  const coupon = allCoupons.find(item => String(item.id) === String(id));
+  if (!coupon) return;
+  document.getElementById('couponId').value = coupon.id;
+  document.getElementById('couponCode').value = coupon.code;
+  document.getElementById('couponType').value = coupon.discountType || 'PERCENT';
+  document.getElementById('couponValue').value = coupon.discountValue || 0;
+  document.getElementById('couponMinOrder').value = coupon.minOrder || 0;
+  document.getElementById('couponMaxUses').value = coupon.maxUses || 0;
+  document.getElementById('couponMaxUsesPerCustomer').value = coupon.maxUsesPerCustomer || 0;
+  document.getElementById('couponAllowedCustomers').value = (coupon.allowedCustomers || []).join(', ');
+  document.getElementById('couponExpiry').value = coupon.expiryDate || '';
+  document.getElementById('couponActive').checked = coupon.active !== false;
+  showScreen('couponsScreen');
+}
+
+function deleteCouponItem(id) {
+  if (!confirm('Delete this coupon?')) return;
+  if (typeof showLoading === 'function') showLoading('Deleting coupon...');
+  server('deleteCoupon', id).then(() => {
+    if (typeof hideLoading === 'function') hideLoading();
+    loadCouponsAdmin();
+  }).catch(err => {
+    if (typeof hideLoading === 'function') hideLoading();
+    alert('Failed to delete coupon: ' + (err.message || err));
+  });
+}
+
+function resetCouponForm() {
+  document.getElementById('couponForm').reset();
+  document.getElementById('couponId').value = '';
+  document.getElementById('couponActive').checked = true;
+}
+
+function editAutoCouponRule(id) {
+  const rule = autoCouponRules.find(item => String(item.id) === String(id));
+  if (!rule) return;
+  const payload = prompt('Edit rule details as JSON', JSON.stringify(rule, null, 2));
+  if (!payload) return;
+  try {
+    const parsed = JSON.parse(payload);
+    server('saveAutoCouponRule', parsed).then(() => {
+      loadCouponsAdmin();
+      alert('Rule updated.');
+    }).catch(err => alert('Failed to update rule: ' + (err.message || err)));
+  } catch (e) {
+    alert('Invalid JSON.');
+  }
+}
+
+function deleteAutoCouponRule(id) {
+  if (!confirm('Delete this auto-coupon rule?')) return;
+  server('deleteAutoCouponRule', id).then(() => loadCouponsAdmin()).catch(err => alert('Failed to delete rule: ' + (err.message || err)));
+}
+
+function approveAutoCouponRequest(id) {
+  const item = autoCouponApprovals.find(i => String(i.id) === String(id));
+  if (!item) return;
+
+  const defaultDisc = Number(item.discountValue) || 100;
+  const newDiscountStr = prompt(`Confirm or adjust reward coupon discount amount (₹) for ${item.customerName || 'Customer'} (${item.mobile || 'Milestone'}):`, defaultDisc);
+  if (newDiscountStr === null) return;
+
+  const finalDiscount = Math.max(1, Number(newDiscountStr) || defaultDisc);
+
+  if (typeof showLoading === 'function') showLoading('Approving loyalty milestone & dispatching coupon...');
+  server('updateAutoCouponApprovalStatus', {
+    id: id,
+    status: 'APPROVED',
+    active: true,
+    discountValue: finalDiscount,
+    couponCode: item.couponCode || ('LOYALTY-' + (item.mobile ? item.mobile.slice(-4) : Date.now().toString().slice(-4))),
+    discountType: item.discountType || 'FIXED',
+    minOrder: item.minOrder || 0,
+    maxUses: item.maxUses || 1,
+    maxUsesPerCustomer: item.maxUsesPerCustomer || 1,
+    allowedCustomers: item.mobile || item.customerId || ''
+  }).then(() => {
+    if (typeof hideLoading === 'function') hideLoading();
+    loadCouponsAdmin();
+    alert('🎉 Milestone coupon approved, code generated, and customer notified!');
+  }).catch(err => {
+    if (typeof hideLoading === 'function') hideLoading();
+    alert('Failed to approve request: ' + (err.message || err));
+  });
+}
+
+function rejectAutoCouponRequest(id) {
+  if (!confirm('Reject this milestone coupon request?')) return;
+  if (typeof showLoading === 'function') showLoading('Rejecting request...');
+  server('updateAutoCouponApprovalStatus', { id: id, status: 'REJECTED', active: false }).then(() => {
+    if (typeof hideLoading === 'function') hideLoading();
+    loadCouponsAdmin();
+    alert('Request rejected.');
+  }).catch(err => {
+    if (typeof hideLoading === 'function') hideLoading();
+    alert('Failed to reject request: ' + (err.message || err));
+  });
+}
+</script>

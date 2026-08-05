@@ -1,0 +1,6 @@
+{
+  "name": "Google Sheets Store App",
+  "description": "An e-commerce mobile application backed by Google Sheets and Drive",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

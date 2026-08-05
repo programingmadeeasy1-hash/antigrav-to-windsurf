@@ -1,0 +1,565 @@
+<script>
+/**
+ * Customer Profile Hub & Order History JS
+ */
+window.switchCustProfileTab = function(tab) {
+    const target = String(tab || 'orders').toLowerCase();
+    
+    const tabs = [
+        { key: 'orders', btnId: 'custTabBtnOrders', secId: 'custTabSecOrders' },
+        { key: 'preorders', btnId: 'custTabBtnPreOrders', secId: 'custTabSecPreOrders' },
+        { key: 'bulk', btnId: 'custTabBtnBulk', secId: 'custTabSecBulk' },
+        { key: 'address', btnId: 'custTabBtnAddress', secId: 'custTabSecAddress' },
+        { key: 'rewards', btnId: 'custTabBtnRewards', secId: 'custTabSecRewards' },
+        { key: 'settings', btnId: 'custTabBtnSettings', secId: 'custTabSecSettings' }
+    ];
+
+    tabs.forEach(item => {
+        const btn = document.getElementById(item.btnId);
+        const sec = document.getElementById(item.secId);
+        const isMatch = (item.key === target) || (target.includes('pre') && item.key === 'preorders');
+
+        if (btn && sec) {
+            if (isMatch) {
+                btn.style.background = "var(--primary)";
+                btn.style.color = "white";
+                sec.style.display = "block";
+            } else {
+                btn.style.background = "transparent";
+                btn.style.color = "#475569";
+                sec.style.display = "none";
+            }
+        }
+    });
+
+    if (target === 'rewards' && typeof loadCustomerRewardsData === 'function') {
+        loadCustomerRewardsData();
+    }
+};
+
+function showProfileAlert(msg, isSuccess = true) {
+    const box = document.getElementById("profileAlertBox");
+    if (!box) return;
+    box.style.display = "block";
+    box.style.background = isSuccess ? "#d1fae5" : "#fef2f2";
+    box.style.color = isSuccess ? "#065f46" : "#991b1b";
+    box.style.border = isSuccess ? "1px solid #a7f3d0" : "1px solid #fca5a5";
+    box.innerText = msg;
+
+    setTimeout(() => {
+        if (box) box.style.display = "none";
+    }, 4000);
+}
+
+window.openProfile = function() {
+    console.log("Opening Customer Profile Hub...");
+
+    if (!App.user) {
+        const saved = localStorage.getItem("aaharshree_user") || localStorage.getItem("customer") || localStorage.getItem("admin");
+        if (saved) {
+            try { App.user = JSON.parse(saved); } catch(e) {}
+        }
+    }
+
+    const user = App.user || {
+        name: "Guest Customer",
+        mobile: "",
+        age: "",
+        gender: "Male",
+        city: "",
+        house: "",
+        street: "",
+        area: "",
+        landmark: "",
+        pin: ""
+    };
+
+    const headerName = document.getElementById("profHeaderName");
+    const headerMobile = document.getElementById("profHeaderMobile");
+    const badgeEl = document.getElementById("profRoleBadge");
+    const actionText = document.getElementById("profAuthActionText");
+    const actionIcon = document.getElementById("profAuthActionIcon");
+
+    const isAdmin = App.user && (App.user.role === "ADMIN" || !!localStorage.getItem("admin"));
+
+    if (headerName) headerName.innerText = user.name || "Customer Account";
+    if (headerMobile) headerMobile.innerText = user.mobile ? "📱 +91 " + user.mobile : (user.email || "Guest Session");
+
+    if (badgeEl) {
+        if (isAdmin) {
+            badgeEl.innerHTML = `<span style="font-size:11px; font-weight:800; background:#fef08a; color:#854d0e; padding:3px 10px; border-radius:10px; border:1px solid #fde047;">👑 Owner / Admin Session</span>
+            <div style="margin-top:10px;">
+              <button onclick="showScreen('dashboardScreen'); if(typeof loadDashboard === 'function') loadDashboard();" style="background:#0b6e38; color:white; border:none; padding:8px 16px; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; box-shadow:0 2px 8px rgba(11,110,56,0.25);">
+                📊 Open Admin Control Center
+              </button>
+            </div>`;
+        } else if (App.user) {
+            badgeEl.innerHTML = `<span style="font-size:11px; font-weight:800; background:#d1fae5; color:#065f46; padding:3px 10px; border-radius:10px; border:1px solid #a7f3d0;">🟢 Verified Account</span>`;
+        } else {
+            badgeEl.innerHTML = `<span style="font-size:11px; font-weight:800; background:#f3f4f6; color:#6b7280; padding:3px 10px; border-radius:10px;">Guest Customer</span>`;
+        }
+    }
+
+    if (actionText && actionIcon) {
+        if (App.user) {
+            actionText.innerText = "Sign Out / Logout";
+            actionIcon.innerText = "🚪";
+        } else {
+            actionText.innerText = "Sign In / Register";
+            actionIcon.innerText = "🔑";
+        }
+    }
+
+    // Populate Editable Input Fields
+    if (document.getElementById("profInputName")) document.getElementById("profInputName").value = user.name || "";
+    if (document.getElementById("profInputMobile")) document.getElementById("profInputMobile").value = user.mobile || "";
+    if (document.getElementById("profInputAge")) document.getElementById("profInputAge").value = user.age || "";
+    if (document.getElementById("profSelectGender")) document.getElementById("profSelectGender").value = user.gender || "";
+    if (document.getElementById("profInputCity")) document.getElementById("profInputCity").value = user.city || user.location || "";
+
+    // Populate Delivery Address Fields
+    if (document.getElementById("addrHouse")) document.getElementById("addrHouse").value = user.house || "";
+    if (document.getElementById("addrStreet")) document.getElementById("addrStreet").value = user.street || "";
+    if (document.getElementById("addrArea")) document.getElementById("addrArea").value = user.area || "";
+    if (document.getElementById("addrLandmark")) document.getElementById("addrLandmark").value = user.landmark || "";
+    if (document.getElementById("addrPin")) document.getElementById("addrPin").value = user.pin || user.pincode || "";
+
+    updateThemeToggleUI();
+    showScreen("profileScreen");
+
+    // Fetch and render customer account orders
+    loadCustomerAccountData();
+};
+
+window.loadCustomerAccountData = function() {
+    const user = App.user || (localStorage.getItem("aaharshree_user") ? JSON.parse(localStorage.getItem("aaharshree_user")) : (localStorage.getItem("customer") ? JSON.parse(localStorage.getItem("customer")) : null));
+    const mobile = (user && user.mobile) ? user.mobile : "";
+    const customerID = (user && (user.customerId || user.id)) ? (user.customerId || user.id) : mobile;
+
+    // 1. Fetch Pickle Orders
+    server("getCustomerOrders", { customerID: customerID, customerId: customerID, mobile: mobile })
+    .then(orders => {
+        renderCustPickleOrders(orders || []);
+    })
+    .catch(err => {
+        console.warn("Pickle orders error:", err);
+        renderCustPickleOrders([]);
+    });
+
+    // 2. Fetch Pre-Orders & Bulk Quotes
+    server("getCustomerSpecialOrders", { customerID: customerID, customerId: customerID, mobile: mobile })
+    .then(specials => {
+        const specList = specials || [];
+        const preOrders = specList.filter(s => s.type === "PREORDER" || s.batchId);
+        const bulkQuotes = specList.filter(s => s.type === "BULK" || s.requirement || !s.batchId);
+
+        renderCustPreOrders(preOrders);
+        renderCustBulkQuotes(bulkQuotes);
+    })
+    .catch(err => {
+        console.warn("Special orders error:", err);
+        renderCustPreOrders([]);
+        renderCustBulkQuotes([]);
+    });
+};
+
+function renderCustPickleOrders(orders) {
+    const container = document.getElementById("myCustOrdersList");
+    const cntEl = document.getElementById("cntCustPickleOrders");
+    if (cntEl) cntEl.innerText = orders ? orders.length : 0;
+
+    if (!container) return;
+
+    if (!orders || orders.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:35px 20px; background:white; border-radius:18px; border:1px solid #f0f0f0;">
+               <div style="font-size:36px; margin-bottom:8px;">📦</div>
+               <h3 style="color:#111827; margin:0 0 4px 0; font-size:14px; font-weight:800;">No pickle orders yet</h3>
+               <p style="color:#64748b; font-size:12px; margin-bottom:12px;">Browse our sun-dried organic pickle store!</p>
+               <button class="primaryButton" onclick="showScreen('homeScreen')" style="width:auto; padding:8px 18px; font-size:12px;">Shop Pickles Now</button>
+            </div>`;
+        return;
+    }
+
+    let html = "";
+    orders.forEach(o => {
+        let statusBadge = `<span style="background:#fef3c7; color:#92400e; padding:3px 8px; border-radius:8px; font-weight:800; font-size:10px;">${o.orderStatus || 'PENDING'}</span>`;
+        if (o.orderStatus === 'Delivered' || o.orderStatus === 'DELIVERED') {
+            statusBadge = `<span style="background:#d1fae5; color:#065f46; padding:3px 8px; border-radius:8px; font-weight:800; font-size:10px;">DELIVERED ✓</span>`;
+        } else if (o.orderStatus === 'Cancelled') {
+            statusBadge = `<span style="background:#fee2e2; color:#991b1b; padding:3px 8px; border-radius:8px; font-weight:800; font-size:10px;">CANCELLED</span>`;
+        }
+
+        let itemsHtml = "";
+        if (o.items && Array.isArray(o.items)) {
+            o.items.forEach(i => {
+                itemsHtml += `
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:#334155; margin-bottom:4px;">
+                        <span>🥭 ${i.name || i.productName} (${i.weight || 'Std Pack'}) x ${i.qty || 1}</span>
+                        <span style="font-weight:700;">₹${Number(i.price || 0) * Number(i.qty || 1)}</span>
+                    </div>`;
+            });
+        }
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:14px; box-shadow:var(--shadow); border:1px solid #f0f0f0;">
+           <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:8px; margin-bottom:8px;">
+              <div>
+                 <div style="font-weight:900; color:var(--primary); font-size:13px;">Order #${o.orderId || o.id}</div>
+                 <div style="font-size:10px; color:#64748b;">${o.createdOn || o.createdAt || ''}</div>
+              </div>
+              ${statusBadge}
+           </div>
+
+           <div style="background:#f8fafc; padding:8px 10px; border-radius:10px; margin-bottom:8px; border:1px solid #e2e8f0;">
+              ${itemsHtml || '<span style="font-size:11px; color:#888;">Standard Pickle Package</span>'}
+           </div>
+
+           <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+              <span style="color:#64748b; font-weight:600;">Payment Mode: <strong style="color:#0f172a;">${o.paymentMode || 'COD'}</strong></span>
+              <span style="font-size:14px; font-weight:900; color:#0f172a;">Total: ₹${o.grandTotal || o.total || 0}</span>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function renderCustPreOrders(preOrders) {
+    const container = document.getElementById("myCustPreOrdersList");
+    const cntEl = document.getElementById("cntCustPreOrders");
+    if (cntEl) cntEl.innerText = preOrders ? preOrders.length : 0;
+
+    if (!container) return;
+
+    if (!preOrders || preOrders.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:35px 20px; background:white; border-radius:18px; border:1px solid #f0f0f0;">
+               <div style="font-size:36px; margin-bottom:8px;">⏳</div>
+               <h3 style="color:#111827; margin:0 0 4px 0; font-size:14px; font-weight:800;">No pre-order bookings</h3>
+               <p style="color:#64748b; font-size:12px; margin-bottom:12px;">Reserve sun-aged seasonal batches before they are crafted!</p>
+               <button class="primaryButton" onclick="if(typeof openPreOrderModal === 'function') openPreOrderModal();" style="width:auto; margin-top:4px; padding:10px 20px; font-size:12px; font-weight:800; border-radius:12px;">Reserve Pre-Order Batch ⏳</button>
+            </div>`;
+        return;
+    }
+
+    let html = "";
+    preOrders.forEach(p => {
+        let statusBadge = `<span style="background:#d1fae5; color:#065f46; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">RESERVED (Active)</span>`;
+        if (p.status === 'DISPATCHED' || p.status === 'COMPLETED') {
+            statusBadge = `<span style="background:#dbeafe; color:#1e40af; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">DISPATCHED ✓</span>`;
+        } else if (p.status === 'CANCELLED') {
+            statusBadge = `<span style="background:#fee2e2; color:#991b1b; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">CANCELLED</span>`;
+        }
+
+        const dateStr = p.createdAt || p.createdOn ? new Date(p.createdAt || p.createdOn).toLocaleDateString() : '';
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:14px; box-shadow:var(--shadow); border:1px solid #f0f0f0; margin-bottom:10px;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div>
+                 <span style="font-size:10px; font-weight:800; color:#0369a1; background:#e0f2fe; padding:2px 6px; border-radius:6px; display:inline-block; margin-bottom:2px;">${p.id || 'PREORDER'}</span>
+                 <strong style="font-size:13px; color:#0f172a; display:block;">${p.productName || 'Sun-Aged Solar Batch'}</strong>
+              </div>
+              ${statusBadge}
+           </div>
+           <div style="font-size:11px; color:#475569; margin-bottom:6px;">
+              <span><strong>Batch Number:</strong> ${p.batchNumber || p.batchId || 'Sun-Aged Batch'}</span> &nbsp;|&nbsp;
+              <span><strong>Quantity:</strong> ${p.quantity || 1} ${p.unit || 'Jar(s)'}</span>
+           </div>
+           <div style="display:flex; justify-content:space-between; align-items:center; background:#f0fdf4; border:1px solid #bbf7d0; padding:6px 10px; border-radius:8px; font-size:11px; color:#166534; font-weight:700;">
+              <span>✨ Solar Preparation & Scheduled Dispatch</span>
+              <small style="color:#64748b; font-weight:600;">${dateStr}</small>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+function renderCustBulkQuotes(bulkQuotes) {
+    const container = document.getElementById("myCustBulkQuotesList");
+    const cntEl = document.getElementById("cntCustBulkQuotes");
+    if (cntEl) cntEl.innerText = bulkQuotes ? bulkQuotes.length : 0;
+
+    if (!container) return;
+
+    if (!bulkQuotes || bulkQuotes.length === 0) {
+        container.innerHTML = `
+            <div style="text-align:center; padding:35px 20px; background:white; border-radius:18px; border:1px solid #f0f0f0;">
+               <div style="font-size:36px; margin-bottom:8px;">🏺</div>
+               <h3 style="color:#111827; margin:0 0 4px 0; font-size:14px; font-weight:800;">No bulk quote inquiries</h3>
+               <p style="color:#64748b; font-size:12px; margin-bottom:12px;">Need wholesale quantities or custom wedding pickle jars?</p>
+               <button class="primaryButton" onclick="if(typeof openBulkModal === 'function') openBulkModal();" style="width:auto; margin-top:4px; padding:10px 20px; font-size:12px; font-weight:800; border-radius:12px;">Request Wholesale Quote 🏺</button>
+            </div>`;
+        return;
+    }
+
+    let html = "";
+    bulkQuotes.forEach(b => {
+        let statusBadge = `<span style="background:#fef3c7; color:#92400e; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">UNDER REVIEW</span>`;
+        if (b.status === 'APPROVED' || b.status === 'FULFILLED') {
+            statusBadge = `<span style="background:#d1fae5; color:#065f46; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">QUOTE APPROVED ✓</span>`;
+        } else if (b.status === 'REJECTED' || b.status === 'CANCELLED') {
+            statusBadge = `<span style="background:#fee2e2; color:#991b1b; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">DECLINED</span>`;
+        }
+
+        let itemsSummary = "";
+        if (b.items && Array.isArray(b.items) && b.items.length > 0) {
+            itemsSummary = b.items.map(i => `${i.productName} (${i.qty} ${i.unit})`).join(", ");
+        } else {
+            itemsSummary = b.requirement || b.productName || "Wholesale Batch Request";
+        }
+
+        const dateStr = b.createdAt || b.createdOn ? new Date(b.createdAt || b.createdOn).toLocaleDateString() : '';
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:14px; box-shadow:var(--shadow); border:1px solid #f0f0f0; margin-bottom:10px;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+              <div>
+                 <span style="font-size:10px; font-weight:800; color:#3730a3; background:#e0e7ff; padding:2px 6px; border-radius:6px; display:inline-block; margin-bottom:2px;">${b.id || 'BULK'}</span>
+                 <strong style="font-size:13px; color:#0f172a; display:block;">${b.eventName || b.purpose || 'Wholesale Inquiry'}</strong>
+              </div>
+              ${statusBadge}
+           </div>
+           <div style="background:#f8fafc; border:1px solid #e2e8f0; padding:8px; border-radius:8px; font-size:11px; color:#334155; margin-bottom:6px;">
+              <strong>Requested Items:</strong> ${itemsSummary}
+           </div>
+           <div style="display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#64748b;">
+              <span>📞 WhatsApp Contact: ${b.mobile || ''}</span>
+              <span>${dateStr}</span>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+window.saveFullProfileInfo = function() {
+    const nameEl = document.getElementById("profInputName");
+    const mobileEl = document.getElementById("profInputMobile");
+    const ageEl = document.getElementById("profInputAge");
+    const genderEl = document.getElementById("profSelectGender");
+    const cityEl = document.getElementById("profInputCity");
+
+    const houseEl = document.getElementById("addrHouse");
+    const streetEl = document.getElementById("addrStreet");
+    const areaEl = document.getElementById("addrArea");
+    const landmarkEl = document.getElementById("addrLandmark");
+    const pinEl = document.getElementById("addrPin");
+
+    const name = nameEl ? nameEl.value.trim() : "";
+    const mobile = mobileEl ? mobileEl.value.trim().replace(/\D/g, '') : "";
+    const age = ageEl ? ageEl.value.trim() : "";
+    const gender = genderEl ? genderEl.value : "";
+    const city = cityEl ? cityEl.value.trim() : "";
+
+    const house = houseEl ? houseEl.value.trim() : "";
+    const street = streetEl ? streetEl.value.trim() : "";
+    const area = areaEl ? areaEl.value.trim() : "";
+    const landmark = landmarkEl ? landmarkEl.value.trim() : "";
+    const pin = pinEl ? pinEl.value.trim().replace(/\D/g, '') : "";
+
+    // Reset field highlights
+    [nameEl, mobileEl, cityEl, houseEl, streetEl, areaEl, pinEl].forEach(el => {
+        if (el) el.style.borderColor = "#cbd5e1";
+    });
+
+    const missingFields = [];
+    if (!name) { missingFields.push("Full Name"); if (nameEl) nameEl.style.borderColor = "#dc2626"; }
+    if (!mobile || mobile.length !== 10) { missingFields.push("10-Digit Mobile Number"); if (mobileEl) mobileEl.style.borderColor = "#dc2626"; }
+    if (!city) { missingFields.push("City / Town"); if (cityEl) cityEl.style.borderColor = "#dc2626"; }
+    if (!house) { missingFields.push("House / Flat No"); if (houseEl) houseEl.style.borderColor = "#dc2626"; }
+    if (!street) { missingFields.push("Street / Road"); if (streetEl) streetEl.style.borderColor = "#dc2626"; }
+    if (!area) { missingFields.push("Area / Locality"); if (areaEl) areaEl.style.borderColor = "#dc2626"; }
+    if (!pin || pin.length !== 6) { missingFields.push("6-Digit PIN Code"); if (pinEl) pinEl.style.borderColor = "#dc2626"; }
+
+    if (missingFields.length > 0) {
+        showProfileAlert(`⚠️ Mandatory information missing or invalid:\n${missingFields.join(", ")}. Please complete all required fields (*).`, false);
+        return;
+    }
+
+    if (typeof showLoading === 'function') showLoading("Saving profile information...");
+
+    const fullAddress = `${house}, ${street}, ${area}${landmark ? ' (Near ' + landmark + ')' : ''}, ${city} - ${pin}`;
+
+    const updatedData = {
+        name: name,
+        customerName: name,
+        mobile: mobile,
+        age: age,
+        gender: gender,
+        city: city,
+        location: city,
+        house: house,
+        street: street,
+        area: area,
+        landmark: landmark,
+        pin: pin,
+        pincode: pin,
+        address: fullAddress,
+        fullAddress: fullAddress,
+        role: (App.user && App.user.role) ? App.user.role : "CUSTOMER"
+    };
+
+    App.user = { ...(App.user || {}), ...updatedData };
+    localStorage.setItem("aaharshree_user", JSON.stringify(App.user));
+    if (App.user.role === "CUSTOMER") {
+        localStorage.setItem("customer", JSON.stringify(App.user));
+    }
+
+    server("updateCustomerAddress", { customerID: App.user.customerId || App.user.id || "CUST1001", ...updatedData })
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        showProfileAlert("🎉 Profile and address details saved successfully!", true);
+        openProfile();
+        if (typeof loadHome === 'function') loadHome();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        showProfileAlert("🎉 Profile details saved locally!", true);
+        openProfile();
+        if (typeof loadHome === 'function') loadHome();
+    });
+};
+
+window.setAppTheme = function(theme) {
+    if (theme === 'dark') {
+        document.body.classList.add('dark-mode');
+        try { localStorage.setItem("aaharshree_theme", "dark"); } catch(e) {}
+    } else {
+        document.body.classList.remove('dark-mode');
+        try { localStorage.setItem("aaharshree_theme", "light"); } catch(e) {}
+    }
+    updateThemeToggleUI();
+};
+
+window.initAppTheme = function() {
+    try {
+        const savedTheme = localStorage.getItem("aaharshree_theme");
+        if (savedTheme === 'dark') {
+            document.body.classList.add('dark-mode');
+        } else {
+            document.body.classList.remove('dark-mode');
+        }
+    } catch(e) {}
+    updateThemeToggleUI();
+};
+
+function updateThemeToggleUI() {
+    const isDark = document.body.classList.contains('dark-mode');
+    const iconEl = document.getElementById("themeIconDisplay");
+    const textEl = document.getElementById("themeTextDisplay");
+    const lightBtn = document.getElementById("themeLightBtn");
+    const darkBtn = document.getElementById("themeDarkBtn");
+
+    if (iconEl) iconEl.innerText = isDark ? "🌙" : "☀️";
+    if (textEl) textEl.innerText = isDark ? "Dark Theme Active" : "Light Theme Active";
+
+    if (lightBtn) {
+        lightBtn.style.background = isDark ? "transparent" : "#ffffff";
+        lightBtn.style.color = isDark ? "#94a3b8" : "#0f172a";
+        lightBtn.style.boxShadow = isDark ? "none" : "0 2px 6px rgba(0,0,0,0.12)";
+    }
+    if (darkBtn) {
+        darkBtn.style.background = isDark ? "#1e293b" : "transparent";
+        darkBtn.style.color = isDark ? "#38bdf8" : "#64748b";
+        darkBtn.style.boxShadow = isDark ? "0 2px 6px rgba(0,0,0,0.3)" : "none";
+    }
+}
+
+try { initAppTheme(); } catch(e) {}
+
+window.handleProfileAuthToggle = function() {
+    if (App.user) {
+        logout();
+    } else {
+        showScreen("loginScreen");
+    }
+};
+
+window.logout = function() {
+    App.user = null;
+    localStorage.removeItem("customer");
+    localStorage.removeItem("admin");
+    localStorage.removeItem("aaharshree_user");
+    
+    showScreen("loginScreen");
+    if (typeof showLoginAlert === 'function') {
+        showLoginAlert("Signed out successfully.", true);
+    }
+};
+
+window.loadCustomerRewardsData = function() {
+    if (!App || !App.user || !App.user.mobile) return;
+
+    const mobile = App.user.mobile;
+    const ptsDisplay = document.getElementById("profilePointsBalanceDisplay");
+    const valDisplay = document.getElementById("profilePointsValueDisplay");
+    const ordersBadge = document.getElementById("milestoneOrdersBadge");
+    const progressBar = document.getElementById("milestoneProgressBar");
+    const nextMsg = document.getElementById("milestoneNextRewardMsg");
+    const couponsList = document.getElementById("myLoyaltyCouponsList");
+
+    Promise.all([
+        server("getCustomerRewardBalance", mobile),
+        server("getCustomerStatsForAutoCoupon", App.user),
+        server("getAllCoupons")
+    ]).then(([points, stats, coupons]) => {
+        const pts = Math.max(0, Number(points) || 0);
+        if (ptsDisplay) ptsDisplay.innerText = `${pts} Points`;
+        if (valDisplay) valDisplay.innerHTML = `Equivalent Rupee Value: <strong>₹${pts.toFixed(2)}</strong> (1 Point = ₹1 Rupee value)`;
+
+        const totalOrders = Number(stats ? stats.totalOrders : 0) || 0;
+        const progressInCycle = totalOrders % 5;
+        const pct = Math.round((progressInCycle / 5) * 100);
+        const needed = 5 - progressInCycle;
+
+        if (ordersBadge) ordersBadge.innerText = `${totalOrders} Orders Completed`;
+        if (progressBar) progressBar.style.width = `${pct}%`;
+        if (nextMsg) {
+            nextMsg.innerText = needed === 5 
+                ? `🏆 You reached a 5-order milestone! Your next 5 orders unlock another ₹100 Reward Coupon!` 
+                : `Place ${needed} more completed order${needed > 1 ? 's' : ''} to reach your next 5-order Loyalty Milestone!`;
+        }
+
+        if (couponsList) {
+            const userCoupons = Array.isArray(coupons) 
+                ? coupons.filter(c => c && c.active && (c.code.includes('LOYALTY') || (c.allowedCustomers && c.allowedCustomers.includes(mobile.toUpperCase())))) 
+                : [];
+
+            if (!userCoupons.length) {
+                couponsList.innerHTML = `<div style="text-align:center; padding:15px; color:#94a3b8; font-size:12px;">No active loyalty milestone coupons yet. Complete orders to earn rewards!</div>`;
+                return;
+            }
+
+            let html = '';
+            userCoupons.forEach(c => {
+                const discountText = c.discountType === 'FIXED' ? `₹${c.discountValue}` : `${c.discountValue}%`;
+                html += `
+                <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:12px; display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div>
+                        <div style="font-weight:900; font-size:14px; color:#166534;">🎁 ${c.code}</div>
+                        <div style="font-size:11px; color:#15803d; margin-top:2px;">Get ${discountText} OFF on your order • Min ₹${c.minOrder || 0}</div>
+                    </div>
+                    <button onclick="copyCouponCodeToClipboard('${c.code}')" style="background:#16a34a; color:white; border:none; padding:6px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer;">
+                        📋 Copy Code
+                    </button>
+                </div>`;
+            });
+            couponsList.innerHTML = html;
+        }
+    }).catch(err => {
+        console.warn("Rewards data load warning:", err);
+    });
+};
+
+window.copyCouponCodeToClipboard = function(code) {
+    if (!code) return;
+    navigator.clipboard.writeText(code).then(() => {
+        alert(`📋 Coupon Code "${code}" copied to clipboard! Paste it at Checkout to redeem.`);
+    }).catch(() => {
+        alert(`Coupon Code: ${code}`);
+    });
+};
+</script>

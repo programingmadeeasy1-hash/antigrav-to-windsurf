@@ -1,0 +1,74 @@
+<div id="registerScreen" class="screen">
+  
+  <!-- BRAND HEADER BANNER -->
+  <div class="auth-brand-header">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+      <button onclick="showScreen('loginScreen')" style="background:rgba(255,255,255,0.2); color:white; border:none; padding:6px 14px; border-radius:20px; font-size:12px; font-weight:700; cursor:pointer;">
+        ← Back to Login
+      </button>
+      <span style="font-size:11px; font-weight:800; background:rgba(255,255,255,0.25); padding:3px 10px; border-radius:12px;">New Account</span>
+    </div>
+
+    <div class="auth-logo-badge">
+      <img src="https://drive.google.com/thumbnail?id=1ZRMpfRzJhazXMa25j0pVEWGrMNXJ0SAG&sz=w300" alt="AaharShree Logo">
+    </div>
+    <h2 style="font-size:20px; font-weight:900; margin-bottom:2px; letter-spacing:-0.3px;">Join AaharShree Naturals</h2>
+    <p style="font-size:12px; opacity:0.9; font-weight:500;">Create an account for quick pickle ordering</p>
+  </div>
+
+  <div style="padding: 20px 15px 80px 15px; max-width: 440px; margin: 0 auto;">
+
+    <!-- CARD FORM WRAPPER -->
+    <div class="auth-form-card">
+
+      <!-- INLINE ALERT NOTIFICATION -->
+      <div id="regAlertBox" style="display:none; padding:12px; border-radius:12px; font-size:12px; font-weight:700; margin-bottom:15px; text-align:center;"></div>
+
+      <form id="registerForm" onsubmit="event.preventDefault(); submitRegister();">
+        
+        <!-- FULL NAME -->
+        <div class="input-group">
+          <label>Full Name*</label>
+          <div class="input-field-wrapper">
+            <span class="input-icon">👤</span>
+            <input type="text" id="regName" placeholder="e.g. Ramesh Patil" required class="custom-auth-input">
+          </div>
+        </div>
+
+        <!-- MOBILE NUMBER -->
+        <div class="input-group">
+          <label>Mobile Number*</label>
+          <div class="input-field-wrapper">
+            <span class="input-icon">📱</span>
+            <input type="text" id="regMobile" placeholder="10-digit mobile number" required pattern="[0-9]{10}" class="custom-auth-input">
+          </div>
+        </div>
+
+        <!-- PASSWORD -->
+        <div class="input-group" style="margin-bottom:20px;">
+          <label>Password*</label>
+          <div class="input-field-wrapper">
+            <span class="input-icon">🔒</span>
+            <input type="password" id="regPassword" placeholder="Set a strong password" required minlength="4" class="custom-auth-input">
+            <button type="button" class="toggle-pwd-btn" onclick="togglePasswordVisibility('regPassword', this)">👁️</button>
+          </div>
+        </div>
+
+        <!-- SUBMIT BUTTON -->
+        <button type="submit" class="primaryButton" style="padding:15px; font-size:15px; border-radius:14px; box-shadow:0 4px 14px rgba(11,110,56,0.3);">
+          Register New Account →
+        </button>
+
+      </form>
+
+      <div style="text-align: center; margin-top: 20px; padding-top: 14px; border-top: 1px solid #f1f5f9;">
+        <p style="font-size: 13px; color: #64748b;">
+          Already have an account? 
+          <a href="javascript:void(0)" onclick="event.preventDefault(); showScreen('loginScreen');" style="color: var(--primary-dark); font-weight: 800; text-decoration: underline;">Login Here</a>
+        </p>
+      </div>
+
+    </div>
+
+  </div>
+</div>

@@ -1,0 +1,37 @@
+<div id="customersScreen" class="screen">
+  <!-- PREMIUM ADMIN HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button onclick="showScreen('dashboardScreen')" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div class="brand-name" style="color: white;">Customer Directory</div>
+    </div>
+    <button onclick="loadCustomers()" class="icon-btn" style="color:white; font-size:16px;" title="Refresh Customers">🔄</button>
+  </header>
+
+  <div style="padding: 15px; padding-bottom:100px;">
+    <!-- SEARCH BAR CONTAINER -->
+    <div style="margin-bottom:12px; position:relative;">
+      <div style="position:relative; display:flex; align-items:center;">
+        <span style="position:absolute; left:14px; font-size:15px; color:#64748b; pointer-events:none;">🔍</span>
+        <input type="text" id="customerSearch" placeholder="Search customer by name, email, or mobile..." oninput="filterCustomersTable()" onkeyup="filterCustomersTable()" 
+               style="width:100%; padding:12px 38px 12px 38px; border-radius:12px; border:1.5px solid #cbd5e1; font-size:13.5px; background:white; color:#0f172a; font-weight:600; box-shadow:0 2px 8px rgba(0,0,0,0.04); outline:none; transition:border-color 0.15s ease;">
+        <button id="clearCustomerSearchBtn" onclick="clearCustomerSearch()" style="position:absolute; right:10px; background:#f1f5f9; border:none; color:#64748b; width:24px; height:24px; border-radius:50%; font-size:12px; font-weight:800; cursor:pointer; display:none; align-items:center; justify-content:center;" title="Clear search">✕</button>
+      </div>
+    </div>
+
+    <!-- CUSTOMER DIRECTORY STATS & SEARCH COUNTER -->
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; padding:8px 12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px;">
+      <div id="customerCountBadge" style="font-size:12px; font-weight:800; color:#334155;">
+        👥 Total Customers: <span style="color:#0b6e38;">0</span>
+      </div>
+      <div id="searchResultFilterStatus" style="font-size:11px; font-weight:700; color:#0284c7;">
+        All Records
+      </div>
+    </div>
+
+    <!-- CUSTOMERS LIST -->
+    <div id="customersList" style="display:flex; flex-direction:column; gap:12px;">
+      <p style="text-align:center; padding:40px; color:#999;">Loading customer directory...</p>
+    </div>
+  </div>
+</div>

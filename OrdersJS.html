@@ -1,0 +1,325 @@
+<script>
+let allAdminOrders = [];
+let selectedAdminOrderIds = new Set();
+
+/**
+ * Loads all orders for Admin Control Panel
+ */
+function loadAdminOrders() {
+    if (typeof showLoading === 'function') showLoading();
+    console.log("Admin: Fetching all customer orders...");
+
+    server("getAllOrders").then(orders => {
+        if (typeof hideLoading === 'function') hideLoading();
+        allAdminOrders = Array.isArray(orders) ? orders : [];
+        try {
+            localStorage.setItem("app_orders", JSON.stringify(allAdminOrders));
+        } catch(e) {}
+        renderAdminOrdersList(allAdminOrders);
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Admin Orders Load Error:", err);
+        try {
+            const stored = localStorage.getItem("app_orders");
+            if (stored) {
+                allAdminOrders = JSON.parse(stored) || [];
+                renderAdminOrdersList(allAdminOrders);
+                return;
+            }
+        } catch(e) {}
+        const list = document.getElementById("adminOrdersList");
+        if (list) list.innerHTML = `<p style="text-align:center; color:red; padding:30px;">Failed to load orders: ${err.message || err}</p>`;
+    });
+}
+
+/**
+ * Renders list of orders with Admin Status Control & Batch Print Checkboxes
+ */
+function renderAdminOrdersList(orders) {
+    const container = document.getElementById("adminOrdersList");
+    if (!container) return;
+
+    if (!orders || orders.length === 0) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:50px 20px; background:white; border-radius:18px; color:#888; box-shadow:var(--shadow);">
+            <div style="font-size:36px; margin-bottom:10px;">📦</div>
+            <div style="font-weight:700; font-size:15px; color:#333;">No orders found</div>
+            <p style="font-size:12px; color:#666; margin-top:4px;">Customer orders placed online or via COD will appear here.</p>
+          </div>`;
+        return;
+    }
+
+    let html = "";
+    orders.forEach(o => {
+        const orderId = String(o.orderId || o.id || "ORD000");
+        const customerName = o.customerName || o.name || "Customer";
+        const mobile = o.mobile || o.phone || "N/A";
+        const createdOn = o.createdOn || o.createdAt || "Recent";
+        const totalAmount = o.grandTotal || o.totalAmount || o.total || o.subtotal || 0;
+        const currentStatus = o.orderStatus || o.status || "Order Placed";
+        const address = o.address || "No address provided";
+        const paymentMode = o.paymentMode || "COD";
+        const couponCode = o.couponCode || o.coupon || "";
+        const couponDiscount = Number(o.couponDiscount || 0);
+        const hasCoupon = !!couponCode || couponDiscount > 0;
+        const isChecked = selectedAdminOrderIds.has(orderId);
+
+        // Items Breakdown
+        let itemsHtml = "";
+        if (o.items && Array.isArray(o.items) && o.items.length > 0) {
+            o.items.forEach(i => {
+                const name = i.name || i.productName || "Product";
+                const weight = i.weight ? ` (${i.weight})` : "";
+                const qty = i.qty || i.quantity || 1;
+                const price = Number(i.price || 0);
+                itemsHtml += `
+                  <div style="display:flex; justify-content:space-between; font-size:12px; color:#444; margin-bottom:4px; padding-bottom:4px; border-bottom:1px dashed #f0f0f0;">
+                     <span>• <strong>${name}</strong>${weight} x ${qty} Qty</span>
+                     <span style="font-weight:700;">₹${price * qty}</span>
+                  </div>`;
+            });
+        } else if (o.requirement) {
+            itemsHtml = `<div style="font-size:12px; color:#444;">${o.requirement}</div>`;
+        }
+
+        // Status Dropdown Options
+        const statuses = ["Order Placed", "Shipped", "Delivered", "Cancelled"];
+        let optionsHtml = "";
+        statuses.forEach(s => {
+            const isMatch = (currentStatus === s) || (s === "Order Placed" && (currentStatus === "PENDING" || currentStatus === "PROCESSING"));
+            const selected = isMatch ? "selected" : "";
+            optionsHtml += `<option value="${s}" ${selected}>${s}</option>`;
+        });
+
+        // Badge styling
+        let statusBg = "#eff6ff";
+        let statusColor = "#1d4ed8";
+        if (currentStatus === "Shipped") {
+            statusBg = "#fef3c7";
+            statusColor = "#b45309";
+        } else if (currentStatus === "Delivered") {
+            statusBg = "#dcfce7";
+            statusColor = "#15803d";
+        } else if (currentStatus === "Cancelled") {
+            statusBg = "#fee2e2";
+            statusColor = "#b91c1c";
+        }
+
+        const encodedOrder = encodeURIComponent(JSON.stringify(o));
+
+        html += `
+        <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); border:1px solid #f1f5f9; position:relative;">
+           
+           <!-- Checkbox & Header -->
+           <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom:1px solid #f1f5f9; padding-bottom:10px; margin-bottom:10px;">
+              <div style="display:flex; align-items:flex-start; gap:10px;">
+                 <input type="checkbox" onchange="toggleAdminOrderSelection('${orderId}', this.checked)" ${isChecked ? 'checked' : ''} style="width:18px; height:18px; margin-top:2px; cursor:pointer;">
+                 <div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-weight:900; color:var(--primary); font-size:15px;">#${orderId}</span>
+                      <span style="background:${statusBg}; color:${statusColor}; font-size:10px; font-weight:800; padding:2px 8px; border-radius:12px;">${currentStatus}</span>
+                    </div>
+                    <span style="font-size:11px; color:#64748b; margin-top:2px; display:block;">📅 ${createdOn}</span>
+                    <div style="font-weight:700; color:#1e293b; font-size:13px; margin-top:4px;">👤 ${customerName} (${mobile})</div>
+                 </div>
+              </div>
+              <div style="text-align:right;">
+                 <span style="font-weight:900; font-size:18px; color:#0f172a;">₹${totalAmount}</span>
+                 <div style="font-size:10px; font-weight:800; color:${paymentMode === 'UPI' ? '#16a34a' : '#d97706'}; background:${paymentMode === 'UPI' ? '#f0fdf4' : '#fffbe6'}; padding:2px 6px; border-radius:6px; margin-top:2px;">💳 ${paymentMode}</div>
+                 ${hasCoupon ? `<div style="font-size:10px; font-weight:800; color:#166534; background:#dcfce7; padding:2px 6px; border-radius:6px; margin-top:4px;">🎟️ ${couponCode || 'Coupon Applied'}</div>` : ''}
+              </div>
+           </div>
+
+           <!-- Address -->
+           <div style="font-size:11px; color:#475569; margin-bottom:10px; background:#f8fafc; padding:8px 12px; border-radius:10px; border:1px solid #f1f5f9;">
+              📍 <strong>Delivery Address:</strong> ${address}
+           </div>
+
+           <!-- Items -->
+           <div style="margin-bottom:12px; background:#fafafa; padding:10px; border-radius:10px;">
+              <div style="font-size:11px; font-weight:800; color:#64748b; margin-bottom:6px; text-transform:uppercase;">Ordered Items</div>
+              ${itemsHtml}
+           </div>
+
+           <!-- Action Row 1: Direct Invoices & Shipping Slip -->
+           <div style="display:flex; gap:6px; margin-bottom:10px; flex-wrap:wrap;">
+              <button onclick="window.generateOrderInvoicePDF('${encodedOrder}', false)" 
+                      style="background:#f1f5f9; border:1px solid #cbd5e1; color:#0f172a; padding:6px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                 📄 Tax Invoice PDF
+              </button>
+              <button onclick="window.generateOrderInvoicePDF('${encodedOrder}', true)" 
+                      style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                 📦 Parcel Packing Slip
+              </button>
+              <button onclick="window.sendWhatsAppInvoiceReceipt('${encodedOrder}')" 
+                      style="background:#25d366; color:white; border:none; padding:6px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,211,102,0.25);">
+                 📲 Send WhatsApp Bill
+              </button>
+           </div>
+
+           <!-- Actions & Status Changer -->
+           <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:8px 12px; border-radius:12px; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                 <span style="font-size:12px; font-weight:800; color:#334155;">Status:</span>
+                 <select onchange="changeOrderStatusAdmin('${orderId}', this.value)" 
+                         style="padding:6px 12px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; color:#0f172a; background:white; cursor:pointer;">
+                    ${optionsHtml}
+                 </select>
+              </div>
+              <button onclick="sendWhatsAppStatusUpdate('${orderId}', '${customerName.replace(/'/g, "\\'")}', '${mobile}', '${currentStatus}', ${totalAmount})" 
+                      style="background:#e2e8f0; color:#334155; border:none; padding:7px 12px; border-radius:8px; font-weight:800; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px;">
+                 💬 WhatsApp Update
+              </button>
+           </div>
+
+        </div>`;
+    });
+
+    container.innerHTML = html;
+    updateAdminBatchCountBadge();
+}
+
+/**
+ * Single Order Selection Handler for Batch Printing
+ */
+function toggleAdminOrderSelection(orderId, isChecked) {
+    if (isChecked) {
+        selectedAdminOrderIds.add(String(orderId));
+    } else {
+        selectedAdminOrderIds.delete(String(orderId));
+    }
+    updateAdminBatchCountBadge();
+}
+
+/**
+ * Select All / Unselect All Filtered Orders Handler
+ */
+function toggleSelectAllAdminOrders(isChecked) {
+    const queryEl = document.getElementById("adminOrderSearch");
+    const statusEl = document.getElementById("adminOrderStatusFilter");
+    const query = queryEl ? queryEl.value.toLowerCase().trim() : "";
+    const status = statusEl ? statusEl.value : "ALL";
+
+    let filtered = allAdminOrders;
+    if (status !== "ALL") {
+        filtered = filtered.filter(o => {
+            const st = o.orderStatus || o.status || "";
+            if (status === "Order Placed") return st === "Order Placed" || st === "PENDING" || st === "PROCESSING";
+            return st === status;
+        });
+    }
+    if (query) {
+        filtered = filtered.filter(o => {
+            const id = (o.orderId || o.id || "").toLowerCase();
+            const name = (o.customerName || o.name || "").toLowerCase();
+            const mob = String(o.mobile || o.phone || "");
+            return id.includes(query) || name.includes(query) || mob.includes(query);
+        });
+    }
+
+    if (isChecked) {
+        filtered.forEach(o => selectedAdminOrderIds.add(String(o.orderId || o.id)));
+    } else {
+        selectedAdminOrderIds.clear();
+    }
+    renderAdminOrdersList(filtered);
+}
+
+/**
+ * Updates selected count indicator badge in batch toolbar
+ */
+function updateAdminBatchCountBadge() {
+    const badge = document.getElementById("selectedOrdersCountBadge");
+    if (badge) badge.innerText = `${selectedAdminOrderIds.size} Selected`;
+}
+
+/**
+ * Prints Batch Selected Parcel Bills
+ */
+function printBatchSelectedParcelBills() {
+    if (selectedAdminOrderIds.size === 0) {
+        alert("Please select at least one order using the checkboxes to print batch shipping bills.");
+        return;
+    }
+    const selectedOrders = allAdminOrders.filter(o => selectedAdminOrderIds.has(String(o.orderId || o.id)));
+    window.generateBatchOrderInvoicePDF(selectedOrders, true);
+}
+
+/**
+ * Filter orders by search query and status filter
+ */
+function filterAdminOrders() {
+    const queryEl = document.getElementById("adminOrderSearch");
+    const statusEl = document.getElementById("adminOrderStatusFilter");
+    const query = queryEl ? queryEl.value.toLowerCase().trim() : "";
+    const status = statusEl ? statusEl.value : "ALL";
+
+    let filtered = allAdminOrders;
+
+    if (status !== "ALL") {
+        filtered = filtered.filter(o => {
+            const st = o.orderStatus || o.status || "";
+            if (status === "Order Placed") return st === "Order Placed" || st === "PENDING" || st === "PROCESSING";
+            return st === status;
+        });
+    }
+
+    if (query) {
+        filtered = filtered.filter(o => {
+            const id = (o.orderId || o.id || "").toLowerCase();
+            const name = (o.customerName || o.name || "").toLowerCase();
+            const mob = String(o.mobile || o.phone || "");
+            return id.includes(query) || name.includes(query) || mob.includes(query);
+        });
+    }
+
+    renderAdminOrdersList(filtered);
+}
+
+/**
+ * Updates order status in Google Spreadsheet & Local Memory
+ */
+function changeOrderStatusAdmin(orderId, newStatus) {
+    if (typeof showLoading === 'function') showLoading("Updating order status...");
+
+    // 1. Instant local state update
+    const target = allAdminOrders.find(o => String(o.orderId || o.id) === String(orderId));
+    if (target) {
+        target.status = newStatus;
+        target.orderStatus = newStatus;
+        try {
+            localStorage.setItem("app_orders", JSON.stringify(allAdminOrders));
+        } catch(e) {}
+    }
+    renderAdminOrdersList(allAdminOrders);
+
+    // 2. Sync server backend
+    server("updateOrderStatus", { orderId: orderId, newStatus: newStatus })
+    .then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert(`✅ Order #${orderId} status updated to: ${newStatus}`);
+        loadAdminOrders();
+    })
+    .catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        alert(`✅ Order #${orderId} status updated to: ${newStatus}`);
+        loadAdminOrders();
+    });
+}
+
+/**
+ * Sends a pre-formatted order status update to customer via WhatsApp
+ */
+function sendWhatsAppStatusUpdate(orderId, customerName, phone, status, totalAmount) {
+    let cleanPhone = String(phone || "").replace(/\D/g, "");
+    if (!cleanPhone || cleanPhone.length < 10) {
+        alert("⚠️ Customer mobile number is missing or invalid.");
+        return;
+    }
+    if (cleanPhone.length === 10) cleanPhone = "91" + cleanPhone;
+
+    const text = `Namaste ${customerName || 'Customer'} ji! 🌾\n\nUpdate from *AaharShree Naturals* regarding your Order *#${orderId}*:\n\n📌 *Current Status:* ${status}\n💰 *Order Total:* ₹${totalAmount}\n\nThank you for choosing homemade, preservative-free organic purity! 🙏\nhttps://aaharshreenaturals.com`;
+
+    window.open(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}`, '_blank');
+}
+</script>

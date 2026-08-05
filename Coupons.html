@@ -1,0 +1,55 @@
+<div id="couponsScreen" class="screen">
+  <header class="topBar">
+    <button class="back-btn" onclick="showScreen('dashboardScreen')">← Back</button>
+    <h2 class="brand-name">Coupons</h2>
+    <div></div>
+  </header>
+
+  <div style="padding: 15px 15px 70px;">
+    <div style="background:linear-gradient(135deg, #fef3c7, #fff7ed); border:1px solid #fdba74; border-radius:20px; padding:16px; box-shadow:var(--shadow); margin-bottom:15px;">
+      <div style="font-size:12px; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.04em;">Coupon Control Center</div>
+      <div style="font-size:16px; font-weight:800; color:#7c2d12; margin-top:4px;">Create, manage, and approve customer coupons</div>
+    </div>
+
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); margin-bottom:15px;">
+      <h3 style="margin:0 0 10px; color:var(--primary); font-size:16px;">➕ Create / Update Coupon</h3>
+      <form id="couponForm" onsubmit="event.preventDefault(); saveCouponFromForm();">
+        <input type="hidden" id="couponId">
+        <input id="couponCode" placeholder="Coupon code (example: SAVE10)" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;" required>
+        <select id="couponType" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px;">
+          <option value="PERCENT">Percentage</option>
+          <option value="FIXED">Fixed Amount</option>
+        </select>
+        <input id="couponValue" type="number" min="0" placeholder="Discount value" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;" required>
+        <input id="couponMinOrder" type="number" min="0" placeholder="Minimum order value" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;" required>
+        <input id="couponMaxUses" type="number" min="0" placeholder="Maximum total uses (0 = unlimited)" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;">
+        <input id="couponMaxUsesPerCustomer" type="number" min="0" placeholder="Maximum uses per customer (0 = unlimited)" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;">
+        <input id="couponAllowedCustomers" placeholder="Allowed customers (phone or ID, comma separated)" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;">
+        <input id="couponExpiry" type="date" style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:10px; margin-bottom:10px; font-size:14px;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin-bottom:10px;">
+          <input id="couponActive" type="checkbox" checked>
+          Active for customers
+        </label>
+        <div style="display:flex; gap:8px;">
+          <button type="submit" style="flex:1; background:var(--primary); color:white; border:none; padding:10px 12px; border-radius:10px; font-weight:700;">Save Coupon</button>
+          <button type="button" onclick="resetCouponForm()" style="padding:10px 12px; border:1px solid #ddd; border-radius:10px; background:#fff;">Clear</button>
+        </div>
+      </form>
+    </div>
+
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); margin-bottom:15px;">
+      <h3 style="margin:0 0 10px; color:var(--primary); font-size:16px;">⚙️ Regular Customer Auto-Coupon Rules</h3>
+      <div id="autoCouponRulesList">Loading rules...</div>
+    </div>
+
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow); margin-bottom:15px;">
+      <h3 style="margin:0 0 10px; color:var(--primary); font-size:16px;">🧾 Approval Queue</h3>
+      <div id="autoCouponApprovalsList">Loading approvals...</div>
+    </div>
+
+    <div style="background:white; border-radius:18px; padding:16px; box-shadow:var(--shadow);">
+      <h3 style="margin:0 0 10px; color:var(--primary); font-size:16px;">📋 Existing Coupons</h3>
+      <div id="couponsList">Loading coupons...</div>
+    </div>
+  </div>
+</div>

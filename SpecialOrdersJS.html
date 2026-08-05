@@ -1,0 +1,607 @@
+<script>
+(function() {
+    window.preOrderBatchesList = window.preOrderBatchesList || [];
+    window.specialPreOrdersList = window.specialPreOrdersList || [];
+    window.specialBulkOrdersList = window.specialBulkOrdersList || [];
+    window.adminCatalogProducts = window.adminCatalogProducts || [];
+
+    function openSpecialOrdersAdmin() {
+        if (typeof showScreen === 'function') {
+            showScreen("specialOrdersAdminScreen");
+        }
+        loadSpecialAdminData();
+    }
+    window.openSpecialOrdersAdmin = openSpecialOrdersAdmin;
+
+    function loadSpecialAdminData() {
+        console.log("Loading Special Admin Data (Pre-Orders, Bulk Orders, Stock Quotas)...");
+
+        // 1. Load cached data instantly if present
+        try {
+            const cachedBatches = localStorage.getItem("app_preorder_batches");
+            if (cachedBatches) {
+                window.preOrderBatchesList = JSON.parse(cachedBatches);
+                renderSpecialBatches(window.preOrderBatchesList);
+            }
+            const cachedOrders = localStorage.getItem("app_special_orders");
+            if (cachedOrders) {
+                const parsed = JSON.parse(cachedOrders);
+                window.specialPreOrdersList = parsed.filter(o => o.type !== 'BULK');
+                window.specialBulkOrdersList = parsed.filter(o => o.type === 'BULK');
+                renderSpecialPreOrders(window.specialPreOrdersList);
+                renderSpecialBulkOrders(window.specialBulkOrdersList);
+            }
+        } catch(e) {}
+
+        // 2. Fetch Catalog Products for Bulk Settings
+        if (typeof server === 'function') {
+            server("getAllProducts").then(products => {
+                if (Array.isArray(products)) {
+                    window.adminCatalogProducts = products;
+                    populateCategoryAndProductDropdowns(products);
+                    renderProductBulkSettingsAdmin(products);
+                }
+            }).catch(err => console.warn("Notice: Products load fallback:", err));
+
+            // 3. Fetch Pre-Order Batches
+            server("getPreOrderBatches").then(batches => {
+                if (Array.isArray(batches)) {
+                    window.preOrderBatchesList = batches;
+                    renderSpecialBatches(batches);
+                    try { localStorage.setItem("app_preorder_batches", JSON.stringify(batches)); } catch(e) {}
+                }
+            }).catch(err => console.warn("Notice: Batches load fallback:", err));
+
+            // 4. Fetch Special Orders & Bulk Requests
+            server("getSpecialOrders").then(orders => {
+                if (Array.isArray(orders)) {
+                    window.specialPreOrdersList = orders.filter(o => o.type !== 'BULK');
+                    window.specialBulkOrdersList = orders.filter(o => o.type === 'BULK');
+                    renderSpecialPreOrders(window.specialPreOrdersList);
+                    renderSpecialBulkOrders(window.specialBulkOrdersList);
+                    try { localStorage.setItem("app_special_orders", JSON.stringify(orders)); } catch(e) {}
+                }
+            }).catch(err => console.warn("Notice: Special orders load fallback:", err));
+        }
+    }
+    window.loadSpecialAdminData = loadSpecialAdminData;
+
+    function switchSpecialTab(tab) {
+        const viewPre = document.getElementById("viewPreOrders");
+        const viewBulk = document.getElementById("viewBulkOrders");
+        const viewBatches = document.getElementById("viewBatches");
+
+        const tabPre = document.getElementById("tabPreOrders");
+        const tabBulk = document.getElementById("tabBulkOrders");
+        const tabBatches = document.getElementById("tabBatches");
+
+        const primaryColor = "var(--primary, #0b6e38)";
+        const inactiveBg = "#f3f4f6";
+        const inactiveColor = "#555";
+
+        if (viewPre) viewPre.style.display = tab === 'preorders' ? 'block' : 'none';
+        if (viewBulk) viewBulk.style.display = tab === 'bulk' ? 'block' : 'none';
+        if (viewBatches) viewBatches.style.display = tab === 'batches' ? 'block' : 'none';
+
+        if (tabPre) {
+            tabPre.style.background = tab === 'preorders' ? primaryColor : inactiveBg;
+            tabPre.style.color = tab === 'preorders' ? 'white' : inactiveColor;
+        }
+        if (tabBulk) {
+            tabBulk.style.background = tab === 'bulk' ? primaryColor : inactiveBg;
+            tabBulk.style.color = tab === 'bulk' ? 'white' : inactiveColor;
+        }
+        if (tabBatches) {
+            tabBatches.style.background = tab === 'batches' ? primaryColor : inactiveBg;
+            tabBatches.style.color = tab === 'batches' ? 'white' : inactiveColor;
+        }
+    }
+    window.switchSpecialTab = switchSpecialTab;
+
+    function switchSpecialYear(year) {
+        const lbl = document.getElementById("activeYearSequenceLabel");
+        if (lbl) {
+            lbl.innerText = `Active Year: ${year} (Sequence BATCH-${year}-XXX)`;
+        }
+    }
+    window.switchSpecialYear = switchSpecialYear;
+
+    function updateBadgeCounts() {
+        const c1 = document.getElementById("cntPreOrders");
+        const c2 = document.getElementById("cntBulkOrders");
+        const c3 = document.getElementById("cntBatches");
+
+        if (c1) c1.innerText = window.specialPreOrdersList.length;
+        if (c2) c2.innerText = window.specialBulkOrdersList.length;
+        if (c3) c3.innerText = window.preOrderBatchesList.length;
+    }
+
+    // -------------------------------------------------------------
+    // RENDERERS
+    // -------------------------------------------------------------
+
+    function renderSpecialPreOrders(orders) {
+        updateBadgeCounts();
+        const container = document.getElementById("specialPreOrdersList");
+        if (!container) return;
+
+        if (!orders || orders.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:35px 20px; background:white; border-radius:16px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0;">
+                    <p style="color:#888; font-weight:700; font-size:13px; margin:0;">No customer pre-orders placed yet.</p>
+                </div>`;
+            return;
+        }
+
+        let html = "";
+        orders.forEach(o => {
+            const statusColor = o.status === 'CONFIRMED' ? '#047857' : o.status === 'DISPATCHED' ? '#0284c7' : '#d97706';
+            const statusBg = o.status === 'CONFIRMED' ? '#ecfdf5' : o.status === 'DISPATCHED' ? '#e0f2fe' : '#fffbeb';
+
+            html += `
+            <div style="background:white; border-radius:14px; padding:14px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; justify-space-between; align-items:flex-start; gap:8px;">
+                    <div>
+                        <div style="font-size:10px; font-weight:800; color:#64748b;">BOOKING REF: ${o.id || o.ref || 'PRE-ORD'}</div>
+                        <h4 style="font-size:14px; font-weight:800; color:#1e293b; margin:2px 0;">${o.customerName || o.name || 'Customer'}</h4>
+                        <div style="font-size:11px; color:#475569;">📞 ${o.mobile || o.phone || 'N/A'}</div>
+                    </div>
+                    <span style="background:${statusBg}; color:${statusColor}; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px;">${o.status || 'PENDING'}</span>
+                </div>
+
+                <div style="background:#f8fafc; border-radius:10px; padding:10px; font-size:12px; border:1px solid #e2e8f0;">
+                    <div style="font-weight:800; color:#0b6e38;">🏺 ${o.productName || 'Solar Aged Mango Pickle'}</div>
+                    <div style="display:flex; justify-content:space-between; margin-top:4px; font-size:11px; color:#475569;">
+                        <span>Quantity: <strong>${o.quantity || 1} Jar(s)</strong></span>
+                        <span>Total: <strong>₹${o.totalAmount || o.price || 0}</strong></span>
+                    </div>
+                    ${o.deliveryNote ? `<div style="font-size:10px; color:#64748b; margin-top:4px;">🚚 ${o.deliveryNote}</div>` : ''}
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:8px;">
+                    <select onchange="updatePreOrderStatus('${o.id}', this.value)" style="padding:4px 8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px; font-weight:700;">
+                        <option value="PENDING" ${o.status === 'PENDING' ? 'selected' : ''}>Set: PENDING</option>
+                        <option value="CONFIRMED" ${o.status === 'CONFIRMED' ? 'selected' : ''}>Set: CONFIRMED</option>
+                        <option value="DISPATCHED" ${o.status === 'DISPATCHED' ? 'selected' : ''}>Set: DISPATCHED</option>
+                    </select>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+    window.renderSpecialPreOrders = renderSpecialPreOrders;
+
+    function updatePreOrderStatus(id, status) {
+        const item = window.specialPreOrdersList.find(o => String(o.id) === String(id));
+        if (item) {
+            item.status = status;
+            renderSpecialPreOrders(window.specialPreOrdersList);
+        }
+        if (typeof server === 'function') {
+            server("updateSpecialOrderStatus", { id, status }).catch(e => console.warn(e));
+        }
+    }
+    window.updatePreOrderStatus = updatePreOrderStatus;
+
+    function renderSpecialBulkOrders(orders) {
+        updateBadgeCounts();
+        const container = document.getElementById("specialBulkOrdersList");
+        if (!container) return;
+
+        if (!orders || orders.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:35px 20px; background:white; border-radius:16px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0;">
+                    <p style="color:#888; font-weight:700; font-size:13px; margin:0;">No customer bulk order inquiries received yet.</p>
+                </div>`;
+            return;
+        }
+
+        let html = "";
+        orders.forEach(o => {
+            const statusColor = o.status === 'APPROVED' ? '#047857' : o.status === 'FULFILLED' ? '#0284c7' : o.status === 'REJECTED' ? '#b91c1c' : '#d97706';
+            const statusBg = o.status === 'APPROVED' ? '#ecfdf5' : o.status === 'FULFILLED' ? '#e0f2fe' : o.status === 'REJECTED' ? '#fef2f2' : '#fffbeb';
+
+            html += `
+            <div style="background:white; border-radius:14px; padding:14px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0; display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div>
+                        <div style="font-size:10px; font-weight:800; color:#3730a3;">BULK INQUIRY REF: ${o.id || 'BULK-REQ'}</div>
+                        <h4 style="font-size:14px; font-weight:800; color:#1e293b; margin:2px 0;">${o.customerName || o.name || 'Buyer'}</h4>
+                        <div style="font-size:11px; color:#475569;">📞 ${o.mobile || 'N/A'} • 📧 ${o.email || 'N/A'}</div>
+                    </div>
+                    <span style="background:${statusBg}; color:${statusColor}; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px;">${o.status || 'PENDING QUOTE'}</span>
+                </div>
+
+                <div style="background:#eef2ff; border-radius:10px; padding:10px; font-size:12px; border:1px solid #c7d2fe;">
+                    <div style="font-weight:800; color:#3730a3;">📦 Items Requested: ${o.itemsSummary || o.productName || 'Custom Wholesale Batch'}</div>
+                    <div style="font-size:11px; color:#475569; margin-top:4px;">Requested Quantity: <strong>${o.quantity || 50} Jars/Kg</strong></div>
+                    ${o.notes ? `<div style="font-size:11px; color:#334155; margin-top:4px; font-style:italic;">💬 "${o.notes}"</div>` : ''}
+                </div>
+
+                <div style="display:flex; justify-content:flex-end; gap:8px;">
+                    <select onchange="updateBulkOrderStatus('${o.id}', this.value)" style="padding:4px 8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px; font-weight:700;">
+                        <option value="PENDING" ${o.status === 'PENDING' ? 'selected' : ''}>Status: PENDING</option>
+                        <option value="APPROVED" ${o.status === 'APPROVED' ? 'selected' : ''}>Status: APPROVED</option>
+                        <option value="FULFILLED" ${o.status === 'FULFILLED' ? 'selected' : ''}>Status: FULFILLED</option>
+                        <option value="REJECTED" ${o.status === 'REJECTED' ? 'selected' : ''}>Status: REJECTED</option>
+                    </select>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+    window.renderSpecialBulkOrders = renderSpecialBulkOrders;
+
+    function updateBulkOrderStatus(id, status) {
+        const item = window.specialBulkOrdersList.find(o => String(o.id) === String(id));
+        if (item) {
+            item.status = status;
+            renderSpecialBulkOrders(window.specialBulkOrdersList);
+        }
+        if (typeof server === 'function') {
+            server("updateSpecialOrderStatus", { id, status }).catch(e => console.warn(e));
+        }
+    }
+    window.updateBulkOrderStatus = updateBulkOrderStatus;
+
+    function renderSpecialBatches(batches) {
+        updateBadgeCounts();
+        const container = document.getElementById("specialBatchesList");
+        if (!container) return;
+
+        if (!batches || batches.length === 0) {
+            container.innerHTML = `
+                <div style="text-align:center; padding:40px 20px; background:white; border-radius:16px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0;">
+                    <p style="color:#888; font-weight:700; font-size:14px; margin-bottom:12px;">No pre-order stock batches created yet.</p>
+                    <button onclick="openAddBatchModal()" class="primaryButton" style="width:auto; padding:9px 22px; font-weight:800;">➕ Create First Stock Quota</button>
+                </div>`;
+            return;
+        }
+
+        let html = "";
+        batches.forEach(b => {
+            const total = parseInt(b.totalStock) || 50;
+            const booked = parseInt(b.bookedCount) || 0;
+            const remaining = Math.max(0, total - booked);
+            const percent = Math.min(100, Math.round((booked / total) * 100));
+
+            const isSoldOut = remaining === 0 || b.status === 'CLOSED';
+            const statusTag = isSoldOut 
+                ? `<span style="background:#fee2e2; color:#991b1b; font-size:10px; font-weight:800; padding:3px 9px; border-radius:12px;">SOLD OUT / CLOSED</span>`
+                : `<span style="background:#d1fae5; color:#065f46; font-size:10px; font-weight:800; padding:3px 9px; border-radius:12px;">ACTIVE (${remaining} JARS LEFT)</span>`;
+
+            const img = b.imageUrl || 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500';
+
+            html += `
+            <div style="background:white; border-radius:16px; padding:15px; box-shadow:var(--shadow, 0 4px 12px rgba(0,0,0,0.05)); border:1px solid #f0f0f0; display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; gap:14px; align-items:center;">
+                    <div style="width:90px; height:70px; border-radius:10px; overflow:hidden; background:#f8fafc; flex-shrink:0; border:1px solid #e2e8f0;">
+                        <img src="${img}" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='https://via.placeholder.com/500?text=Batch'">
+                    </div>
+                    <div style="flex:1; min-width:0;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:3px; gap:8px;">
+                            <div style="font-size:11px; font-weight:800; color:#0b6e38;">${b.batchNumber || 'BATCH-2026-01'}</div>
+                            ${statusTag}
+                        </div>
+                        <h4 style="font-size:14px; font-weight:800; color:#1e293b; margin:0 0 2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${b.productName || 'Seasonal Pickle Batch'}</h4>
+                        <div style="font-size:11px; color:#64748b;">${b.name || b.tag || 'Solar Fermented'}</div>
+                    </div>
+                </div>
+
+                <!-- PROGRESS BAR -->
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px;">
+                    <div style="display:flex; justify-content:space-between; font-size:11px; font-weight:800; margin-bottom:6px; color:#334155;">
+                        <span>📊 Stock Quota Math:</span>
+                        <span>${booked} / ${total} Jars Booked (${percent}%)</span>
+                    </div>
+                    <div style="width:100%; height:8px; background:#e2e8f0; border-radius:4px; overflow:hidden;">
+                        <div style="width:${percent}%; height:100%; background:${isSoldOut ? '#ef4444' : '#0b6e38'}; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:10px;">
+                    <span style="font-size:11px; color:#64748b;">🚚 ${b.deliveryEstimate || 'Ships within 5-7 days'}</span>
+                    <div style="display:flex; gap:8px;">
+                        <button onclick="editBatchModal('${b.id}')" style="background:#eef2ff; color:#3730a3; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Edit</button>
+                        <button onclick="deleteBatchAdmin('${b.id}')" style="background:#fef2f2; color:#991b1b; border:none; padding:6px 14px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">🗑️ Delete</button>
+                    </div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+    window.renderSpecialBatches = renderSpecialBatches;
+
+    function renderProductBulkSettingsAdmin(products) {
+        const container = document.getElementById("adminProductBulkSettingsList");
+        if (!container) return;
+
+        if (!products || products.length === 0) {
+            container.innerHTML = `<div style="text-align:center; padding:15px; color:#888; font-size:12px;">No products found in catalog.</div>`;
+            return;
+        }
+
+        const catFilter = document.getElementById("adminBulkCategoryFilter")?.value || "ALL";
+        const filtered = catFilter === 'ALL' ? products : products.filter(p => p.category === catFilter);
+
+        let html = "";
+        filtered.forEach(p => {
+            const isAvailable = p.bulkAvailable !== false && p.bulkAvailable !== "NO";
+            const maxQty = p.maxBulkQty || 50;
+
+            html += `
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:10px 14px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <img src="${p.imageUrl || p.image || 'https://via.placeholder.com/80'}" style="width:40px; height:40px; border-radius:8px; object-fit:cover; background:#fff;">
+                    <div>
+                        <div style="font-size:13px; font-weight:800; color:#1e293b;">${p.name || 'Product'}</div>
+                        <small style="font-size:10px; color:#64748b;">Category: ${p.category || 'General'}</small>
+                    </div>
+                </div>
+
+                <div style="display:flex; align-items:center; gap:16px;">
+                    <label style="font-size:11px; font-weight:700; color:#334155; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                        <input type="checkbox" id="bulkToggle_${p.id}" ${isAvailable ? 'checked' : ''} style="width:16px; height:16px; accent-color:#3730a3;">
+                        Bulk Ordering Allowed
+                    </label>
+
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size:10px; font-weight:700; color:#64748b;">Max Limit:</span>
+                        <input type="number" id="bulkMaxQty_${p.id}" value="${maxQty}" min="1" max="1000" style="width:65px; padding:5px 8px; border-radius:6px; border:1px solid #cbd5e1; font-size:12px; font-weight:800; text-align:center;">
+                    </div>
+                </div>
+            </div>`;
+        });
+        container.innerHTML = html;
+    }
+    window.renderProductBulkSettingsAdmin = renderProductBulkSettingsAdmin;
+
+    function populateCategoryAndProductDropdowns(products) {
+        const catFilter = document.getElementById("adminBulkCategoryFilter");
+        const batchCat = document.getElementById("batchCategorySelect");
+        const batchProd = document.getElementById("batchProductSelect");
+
+        const categoriesSet = new Set();
+        products.forEach(p => { if (p.category) categoriesSet.add(p.category); });
+
+        if (catFilter) {
+            let catOptions = `<option value="ALL">All Categories</option>`;
+            categoriesSet.forEach(c => { catOptions += `<option value="${c}">${c}</option>`; });
+            catFilter.innerHTML = catOptions;
+        }
+
+        if (batchCat) {
+            let catOptions = `<option value="ALL">All Categories</option>`;
+            categoriesSet.forEach(c => { catOptions += `<option value="${c}">${c}</option>`; });
+            batchCat.innerHTML = catOptions;
+        }
+
+        if (batchProd) {
+            let prodOptions = `<option value="">-- Choose Catalog Product --</option>`;
+            products.forEach(p => {
+                prodOptions += `<option value="${p.id}">${p.name}</option>`;
+            });
+            batchProd.innerHTML = prodOptions;
+        }
+    }
+
+    function filterAdminProductBulkSettings() {
+        renderProductBulkSettingsAdmin(window.adminCatalogProducts);
+    }
+    window.filterAdminProductBulkSettings = filterAdminProductBulkSettings;
+
+    function saveAllProductBulkSettingsAdmin() {
+        if (typeof showLoading === 'function') showLoading("Saving Bulk Settings...");
+
+        window.adminCatalogProducts.forEach(p => {
+            const toggleEl = document.getElementById(`bulkToggle_${p.id}`);
+            const maxQtyEl = document.getElementById(`bulkMaxQty_${p.id}`);
+            if (toggleEl) p.bulkAvailable = toggleEl.checked ? "YES" : "NO";
+            if (maxQtyEl) p.maxBulkQty = parseInt(maxQtyEl.value) || 50;
+        });
+
+        renderProductBulkSettingsAdmin(window.adminCatalogProducts);
+
+        if (typeof server === 'function') {
+            let promises = window.adminCatalogProducts.map(p => {
+                return server("updateProductBulkSettings", { id: p.id, bulkAvailable: p.bulkAvailable === "YES", maxBulkQty: p.maxBulkQty });
+            });
+            Promise.all(promises).then(() => {
+                if (typeof hideLoading === 'function') hideLoading();
+                alert("✅ Bulk settings saved successfully!");
+            }).catch(() => {
+                if (typeof hideLoading === 'function') hideLoading();
+                alert("✅ Bulk settings updated locally!");
+            });
+        } else {
+            if (typeof hideLoading === 'function') hideLoading();
+            alert("✅ Bulk settings updated!");
+        }
+    }
+    window.saveAllProductBulkSettingsAdmin = saveAllProductBulkSettingsAdmin;
+
+    // -------------------------------------------------------------
+    // MODAL & BATCH HANDLERS
+    // -------------------------------------------------------------
+
+    function openAddBatchModal() {
+        try {
+            document.getElementById("batchFormId").value = "";
+            document.getElementById("batchProductName").value = "";
+            document.getElementById("batchName").value = "Sun-Dried Batch #" + Math.floor(Math.random() * 10 + 1);
+            document.getElementById("batchTotalStock").value = "50";
+            document.getElementById("batchBookedCount").value = "0";
+            document.getElementById("batchImageUrl").value = "";
+            document.getElementById("batchDeliveryEstimate").value = "Ships within 5-7 days";
+
+            autoGenerateBatchNumber();
+            updateQuotaDisplay();
+            previewBatchImage("");
+        } catch(e) {}
+
+        const modal = document.getElementById("batchModal");
+        if (modal) modal.style.display = "flex";
+    }
+    window.openAddBatchModal = openAddBatchModal;
+    window.openBatchModal = openAddBatchModal;
+    window.openAddPreOrderBatchModal = openAddBatchModal;
+
+    function closeBatchModal() {
+        const modal = document.getElementById("batchModal");
+        if (modal) modal.style.display = "none";
+    }
+    window.closeBatchModal = closeBatchModal;
+
+    function autoGenerateBatchNumber() {
+        const yr = document.getElementById("specialYearSelector")?.value || "2026";
+        const seq = (window.preOrderBatchesList.length + 1).toString().padStart(3, '0');
+        const numInput = document.getElementById("batchNumber");
+        if (numInput) numInput.value = `BATCH-${yr}-${seq}`;
+    }
+    window.autoGenerateBatchNumber = autoGenerateBatchNumber;
+
+    function updateQuotaDisplay() {
+        const total = parseInt(document.getElementById("batchTotalStock")?.value) || 0;
+        const booked = parseInt(document.getElementById("batchBookedCount")?.value) || 0;
+        const rem = Math.max(0, total - booked);
+        const resEl = document.getElementById("quotaCalcResult");
+        if (resEl) {
+            resEl.innerText = `Remaining: ${rem} Jars`;
+            resEl.style.color = rem > 0 ? "#0b6e38" : "#ef4444";
+        }
+    }
+    window.updateQuotaDisplay = updateQuotaDisplay;
+
+    function onBatchCategoryChange() {
+        const cat = document.getElementById("batchCategorySelect")?.value || "ALL";
+        const prodSelect = document.getElementById("batchProductSelect");
+        if (!prodSelect) return;
+
+        const filtered = cat === 'ALL' ? window.adminCatalogProducts : window.adminCatalogProducts.filter(p => p.category === cat);
+        let options = `<option value="">-- Choose Catalog Product --</option>`;
+        filtered.forEach(p => { options += `<option value="${p.id}">${p.name}</option>`; });
+        prodSelect.innerHTML = options;
+    }
+    window.onBatchCategoryChange = onBatchCategoryChange;
+
+    function onBatchProductChange() {
+        const pId = document.getElementById("batchProductSelect")?.value;
+        const prod = window.adminCatalogProducts.find(p => String(p.id) === String(pId));
+        if (prod) {
+            document.getElementById("batchProductName").value = prod.name;
+            if (prod.imageUrl || prod.image) {
+                previewBatchImage(prod.imageUrl || prod.image);
+            }
+        }
+    }
+    window.onBatchProductChange = onBatchProductChange;
+
+    function previewBatchImage(url) {
+        const urlInput = document.getElementById("batchImageUrl");
+        if (urlInput && urlInput.value !== url) urlInput.value = url;
+
+        const prevBox = document.getElementById("batchImgPreviewBox");
+        if (!prevBox) return;
+
+        if (!url) {
+            prevBox.innerHTML = `<span style="color:#888; font-size:11px; font-weight:700;">Batch Image Preview</span>`;
+            return;
+        }
+
+        prevBox.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:cover;" onerror="this.parentNode.innerHTML='<span style=\\'color:#ef4444; font-size:11px; font-weight:700;\\'>⚠️ Invalid Image URL</span>'">`;
+    }
+    window.previewBatchImage = previewBatchImage;
+
+    function handleBatchFileUpload(input) {
+        if (!input || !input.files || !input.files[0]) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            previewBatchImage(e.target.result);
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+    window.handleBatchFileUpload = handleBatchFileUpload;
+
+    function selectBatchPreset(preset) {
+        const url = preset === 'mango' ? 'https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80'
+            : preset === 'barni' ? 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500'
+            : 'https://images.unsplash.com/photo-1541544741938-0af808871cc0?auto=format&fit=crop&w=800&q=80';
+        previewBatchImage(url);
+    }
+    window.selectBatchPreset = selectBatchPreset;
+
+    function editBatchModal(id) {
+        const b = window.preOrderBatchesList.find(item => String(item.id) === String(id));
+        if (!b) return;
+
+        document.getElementById("batchFormId").value = b.id;
+        document.getElementById("batchNumber").value = b.batchNumber || "";
+        document.getElementById("batchProductName").value = b.productName || "";
+        document.getElementById("batchName").value = b.name || "";
+        document.getElementById("batchTag").value = b.tag || "Pre-Order";
+        document.getElementById("batchTotalStock").value = b.totalStock || 50;
+        document.getElementById("batchBookedCount").value = b.bookedCount || 0;
+        document.getElementById("batchImageUrl").value = b.imageUrl || "";
+        document.getElementById("batchDeliveryEstimate").value = b.deliveryEstimate || "";
+        document.getElementById("batchDispatchDate").value = b.dispatchDate || "";
+        document.getElementById("batchStatus").value = b.status || "ACTIVE";
+
+        updateQuotaDisplay();
+        previewBatchImage(b.imageUrl || "");
+
+        const modal = document.getElementById("batchModal");
+        if (modal) modal.style.display = "flex";
+    }
+    window.editBatchModal = editBatchModal;
+
+    function saveBatchAdmin() {
+        const id = document.getElementById("batchFormId").value || ("BATCH" + Date.now());
+        const batchNumber = document.getElementById("batchNumber").value.trim() || "BATCH-2026-001";
+        const productName = document.getElementById("batchProductName").value.trim() || "Seasonal Pickle";
+        const name = document.getElementById("batchName").value.trim() || "Batch #1";
+        const tag = document.getElementById("batchTag").value;
+        const totalStock = parseInt(document.getElementById("batchTotalStock").value) || 50;
+        const bookedCount = parseInt(document.getElementById("batchBookedCount").value) || 0;
+        const imageUrl = document.getElementById("batchImageUrl").value.trim() || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+        const deliveryEstimate = document.getElementById("batchDeliveryEstimate").value.trim();
+        const dispatchDate = document.getElementById("batchDispatchDate").value;
+        const status = document.getElementById("batchStatus").value;
+
+        const payload = { id, batchNumber, productName, name, tag, totalStock, bookedCount, imageUrl, deliveryEstimate, dispatchDate, status };
+
+        // 1. Update Local
+        const idx = window.preOrderBatchesList.findIndex(b => String(b.id) === String(id));
+        if (idx !== -1) window.preOrderBatchesList[idx] = payload;
+        else window.preOrderBatchesList.unshift(payload);
+
+        switchSpecialTab('batches');
+        renderSpecialBatches(window.preOrderBatchesList);
+        try { localStorage.setItem("app_preorder_batches", JSON.stringify(window.preOrderBatchesList)); } catch(e) {}
+        closeBatchModal();
+
+        // 2. Server save
+        if (typeof server === 'function') {
+            server("savePreOrderBatch", payload).then(res => {
+                console.log("Pre-order batch saved on server:", res);
+            }).catch(err => {
+                console.warn("Notice: Server batch save fallback:", err);
+            });
+        }
+    }
+    window.saveBatchAdmin = saveBatchAdmin;
+
+    function deleteBatchAdmin(id) {
+        if (!confirm("Are you sure you want to delete this pre-order batch stock quota?")) return;
+
+        window.preOrderBatchesList = window.preOrderBatchesList.filter(b => String(b.id) !== String(id));
+        renderSpecialBatches(window.preOrderBatchesList);
+        try { localStorage.setItem("app_preorder_batches", JSON.stringify(window.preOrderBatchesList)); } catch(e) {}
+
+        if (typeof server === 'function') {
+            server("deletePreOrderBatch", id).catch(err => console.warn(err));
+        }
+    }
+    window.deleteBatchAdmin = deleteBatchAdmin;
+
+})();
+</script>

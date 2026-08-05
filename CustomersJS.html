@@ -1,0 +1,132 @@
+<script>
+let allCustomersData = [];
+
+function loadCustomers() {
+    showLoading();
+    console.log("Admin: Fetching customers...");
+
+    server("getAllCustomers").then(data => {
+        hideLoading();
+        allCustomersData = Array.isArray(data) ? data : [];
+        updateCustomerHeaderCount(allCustomersData.length, allCustomersData.length);
+        filterCustomersTable();
+    }).catch(err => {
+        hideLoading();
+        console.error("Customers Load Error:", err);
+        const list = document.getElementById("customersList");
+        if (list) list.innerHTML = `<p style="text-align:center; color:red; padding:30px;">Failed to load customers: ${err}</p>`;
+    });
+}
+
+function updateCustomerHeaderCount(totalCount, filteredCount) {
+    const badge = document.getElementById("customerCountBadge");
+    const status = document.getElementById("searchResultFilterStatus");
+    if (badge) {
+        badge.innerHTML = `👥 Total Customers: <span style="color:#0b6e38; font-weight:800;">${totalCount}</span>`;
+    }
+    if (status) {
+        if (filteredCount < totalCount) {
+            status.innerHTML = `<span style="color:#d97706;">🔍 Showing ${filteredCount} match${filteredCount === 1 ? '' : 'es'}</span>`;
+        } else {
+            status.innerHTML = `<span style="color:#0284c7;">All Records (${totalCount})</span>`;
+        }
+    }
+}
+
+function clearCustomerSearch() {
+    const input = document.getElementById("customerSearch");
+    if (input) input.value = "";
+    filterCustomersTable();
+}
+
+function filterCustomersTable() {
+    const input = document.getElementById("customerSearch");
+    const clearBtn = document.getElementById("clearCustomerSearchBtn");
+    const query = input ? input.value.toLowerCase().trim() : "";
+
+    if (clearBtn) {
+        clearBtn.style.display = query.length > 0 ? "flex" : "none";
+    }
+
+    if (!query) {
+        updateCustomerHeaderCount(allCustomersData.length, allCustomersData.length);
+        renderCustomersList(allCustomersData);
+        return;
+    }
+
+    const filtered = allCustomersData.filter(c => {
+        const nameMatch = c.name && c.name.toLowerCase().includes(query);
+        const emailMatch = c.email && c.email.toLowerCase().includes(query);
+        const mobileMatch = c.mobile && String(c.mobile).toLowerCase().includes(query);
+        const idMatch = (c.customerId || c.id) && String(c.customerId || c.id).toLowerCase().includes(query);
+        const addressMatch = c.fullAddress && c.fullAddress.toLowerCase().includes(query);
+
+        return nameMatch || emailMatch || mobileMatch || idMatch || addressMatch;
+    });
+
+    updateCustomerHeaderCount(allCustomersData.length, filtered.length);
+    renderCustomersList(filtered, query);
+}
+
+function renderCustomersList(customers, searchQuery = "") {
+    const container = document.getElementById("customersList");
+    if (!container) return;
+
+    if (!customers || customers.length === 0) {
+        if (searchQuery) {
+            container.innerHTML = `
+            <div style="text-align:center; padding:40px 20px; background:white; border-radius:16px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(0,0,0,0.04);">
+               <div style="font-size:36px; margin-bottom:8px;">🔎</div>
+               <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:4px;">No matching customers found</div>
+               <div style="font-size:12px; color:#64748b; margin-bottom:14px;">No user matching "<strong style="color:#d97706;">${searchQuery}</strong>" was found in the system.</div>
+               <button onclick="clearCustomerSearch()" style="background:#0b6e38; color:white; border:none; padding:8px 16px; border-radius:10px; font-weight:700; font-size:12px; cursor:pointer;">Clear Search Query</button>
+            </div>`;
+        } else {
+            container.innerHTML = `<div style="text-align:center; padding:50px; background:white; border-radius:18px; color:#999; border:1px solid #e2e8f0;">No registered customers found.</div>`;
+        }
+        return;
+    }
+
+    let html = "";
+    customers.forEach(c => {
+        const displayId = c.customerId || c.id || "CUST-UNASSIGNED";
+        const emailStr = c.email ? c.email : "No email registered";
+        const mobileStr = c.mobile ? `+91 ${c.mobile}` : "Not provided";
+        const regDate = c.registeredOn ? new Date(c.registeredOn).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' }) : 'N/A';
+        const isEmailMatch = searchQuery && c.email && c.email.toLowerCase().includes(searchQuery.toLowerCase());
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:15px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(0,0,0,0.03);">
+           <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:8px;">
+              <div>
+                 <div style="font-weight:800; color:#0f172a; font-size:15px; display:flex; align-items:center; gap:6px;">
+                   👤 ${c.name || 'Customer'}
+                 </div>
+                 <div style="font-size:10px; font-weight:700; color:#64748b; margin-top:2px;">
+                   🆔 <span style="font-family:monospace; color:#334155;">${displayId}</span>
+                 </div>
+              </div>
+              <span style="font-size:11px; background:${c.status === 'SUSPENDED' ? '#fee2e2' : '#dcfce7'}; color:${c.status === 'SUSPENDED' ? '#991b1b' : '#15803d'}; padding:3px 10px; border-radius:10px; font-weight:800; white-space:nowrap;">
+                 ${c.status || 'ACTIVE'}
+              </span>
+           </div>
+
+           <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px; background:#f8fafc; border:1px solid #f1f5f9; padding:10px; border-radius:10px; margin-bottom:8px; font-size:12px;">
+              <div style="font-weight:700; color:#0b6e38; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                 📱 ${mobileStr}
+              </div>
+              <div style="font-weight:700; color:${isEmailMatch ? '#d97706' : '#2563eb'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${emailStr}">
+                 ✉️ ${emailStr}
+              </div>
+           </div>
+
+           <div style="font-size:11px; color:#475569; background:#fff; border:1px solid #e2e8f0; padding:8px 10px; border-radius:8px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:4px;">
+              <div>📍 <strong>Address:</strong> ${c.fullAddress || 'No primary delivery address saved'}</div>
+              <div style="color:#94a3b8; font-size:10px; font-weight:600;">📅 Joined: ${regDate}</div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+</script>

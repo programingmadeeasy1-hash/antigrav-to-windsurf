@@ -1,0 +1,896 @@
+<script>
+let allAdminProductsList = [];
+
+/**
+ * Populate Category dropdown in Product form from backend categories
+ */
+function populateProductCategoriesDropdown(selectedCategory) {
+    const select = document.getElementById("adminProdCategory");
+    if (!select) return;
+
+    server("getAllCategories").then(categories => {
+        let options = "";
+        const catList = categories || [];
+        if (catList.length === 0) {
+            options = `<option value="Mango Pickles">Mango Pickles</option>
+                       <option value="Lemon Pickles">Lemon Pickles</option>
+                       <option value="Chilli Pickles">Chilli Pickles</option>
+                       <option value="Special Pickles">Special Pickles</option>`;
+        } else {
+            catList.forEach(c => {
+                const icon = c.icon ? c.icon + " " : "";
+                const sel = (selectedCategory && selectedCategory.toLowerCase() === c.name.toLowerCase()) ? "selected" : "";
+                options += `<option value="${c.name}" ${sel}>${icon}${c.name}</option>`;
+            });
+        }
+        select.innerHTML = options;
+    }).catch(err => console.error("Error populating product categories:", err));
+}
+
+/**
+ * Loads products for Admin catalog
+ */
+window.loadAdminProductsLogic = function() {
+    showLoading();
+    console.log("Admin: Fetching products catalog...");
+
+    server("getAllProducts").then(products => {
+        hideLoading();
+        allAdminProductsList = products || [];
+        renderAdminProductsList(allAdminProductsList);
+    }).catch(err => {
+        hideLoading();
+        console.error("Admin Product Load Error:", err);
+        const container = document.getElementById("adminProductsList");
+        if (container) container.innerHTML = `<p style="text-align:center; color:red; padding:30px;">Failed to load products: ${err}</p>`;
+    });
+};
+window.loadAdminProducts = window.loadAdminProductsLogic;
+
+/**
+ * Renders product list items with stock and category info
+ */
+function renderAdminProductsList(products) {
+    const container = document.getElementById("adminProductsList");
+    if (!container) return;
+
+    if (products.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:50px; background:white; border-radius:18px; color:#999;">No products found.</div>`;
+        return;
+    }
+
+    let html = "";
+    products.forEach(p => {
+        const img = (p.image1 && p.image1.length > 10) ? p.image1 : 'https://via.placeholder.com/100';
+        const stockCount = p.stock !== undefined ? p.stock : (p.quantity || 25);
+        const stockColor = stockCount > 10 ? '#0b6e38' : (stockCount > 0 ? '#d97706' : '#dc2626');
+        
+        html += `
+        <div style="background:white; border-radius:16px; padding:12px; display:flex; gap:12px; align-items:center; box-shadow:var(--shadow);">
+           <img src="${img}" style="width:65px; height:65px; border-radius:10px; object-fit:cover; border:1px solid #eee;">
+           
+           <div style="flex:1;">
+              <div style="font-weight:800; color:#222; font-size:14px;">${p.name}</div>
+              <div style="font-size:11px; color:var(--primary); font-weight:700;">${p.category || 'General'} • ${p.weight || 'Std'}</div>
+              <div style="font-size:12px; font-weight:800; color:#000; margin-top:2px;">
+                 ₹${p.offerPrice || p.mrp} 
+                 <span style="font-size:11px; color:#999; text-decoration:line-through; font-weight:normal;">₹${p.mrp}</span>
+                 <span style="margin-left:8px; font-size:11px; color:${stockColor}; font-weight:800;">📦 Stock: ${stockCount} Jars</span>
+              </div>
+           </div>
+
+           <button onclick="editProductAdmin('${p.id}')" 
+                   style="background:#f0f0f0; border:none; padding:8px 12px; border-radius:8px; font-weight:700; font-size:12px; cursor:pointer;">
+              ✏️ Edit
+           </button>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Filter products by search text
+ */
+function filterAdminProducts() {
+    const query = document.getElementById("adminProductSearch").value.toLowerCase().trim();
+    if (!query) {
+        renderAdminProductsList(allAdminProductsList);
+        return;
+    }
+    const filtered = allAdminProductsList.filter(p => 
+        (p.name && p.name.toLowerCase().includes(query)) ||
+        (p.category && p.category.toLowerCase().includes(query))
+    );
+    renderAdminProductsList(filtered);
+}
+
+/**
+ * Opens modal for new product creation
+ */
+function openProductModal() {
+    document.getElementById("productModalTitle").innerText = "Add New Pickle Product";
+    document.getElementById("adminProdId").value = "";
+    document.getElementById("adminProdName").value = "";
+    document.getElementById("adminProdWeight").value = "";
+    document.getElementById("adminProdMRP").value = "";
+    document.getElementById("adminProdOfferPrice").value = "";
+    document.getElementById("adminProdStock").value = "50";
+    document.getElementById("adminProdImage").value = "";
+    document.getElementById("adminProdDesc").value = "";
+
+    // Reset Visibility & Badges Checkboxes
+    if (document.getElementById("adminProdFeatured")) document.getElementById("adminProdFeatured").checked = false;
+    if (document.getElementById("adminProdBestSeller")) document.getElementById("adminProdBestSeller").checked = false;
+    if (document.getElementById("adminProdNewArrival")) document.getElementById("adminProdNewArrival").checked = false;
+    if (document.getElementById("adminProdPreOrder")) document.getElementById("adminProdPreOrder").checked = false;
+    if (document.getElementById("adminProdBulkAvailable")) document.getElementById("adminProdBulkAvailable").checked = false;
+    if (document.getElementById("adminProdActiveStatus")) document.getElementById("adminProdActiveStatus").checked = true;
+    if (document.getElementById("adminProdUnder50Off")) document.getElementById("adminProdUnder50Off").checked = false;
+    if (document.getElementById("adminProdOff50Percent")) document.getElementById("adminProdOff50Percent").checked = false;
+    if (document.getElementById("adminProdOff20Percent")) document.getElementById("adminProdOff20Percent").checked = false;
+
+    populateProductCategoriesDropdown();
+    previewProductImage("");
+    document.getElementById("productModal").style.display = "flex";
+}
+
+function closeProductModal() {
+    document.getElementById("productModal").style.display = "none";
+}
+
+/**
+ * Image upload and preview handlers for Products
+ */
+window.handleProductFileUpload = function(input) {
+    if (input.files && input.files[0]) {
+        const file = input.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            document.getElementById("adminProdImage").value = dataUrl;
+            previewProductImage(dataUrl);
+        };
+        reader.readAsDataURL(file);
+    }
+};
+
+window.updateProductImageFit = function() {
+    const fitMode = document.getElementById("prodFitMode")?.value || "cover";
+    const heightVal = document.getElementById("prodHeightRange")?.value || "120";
+    const heightText = document.getElementById("prodHeightVal");
+    const tagEl = document.getElementById("prodDimensionsTag");
+    const box = document.getElementById("adminProdImgPreviewBox");
+
+    if (heightText) heightText.innerText = heightVal + "px";
+    if (tagEl) tagEl.innerText = `${heightVal}px • ${fitMode.toUpperCase()}`;
+
+    if (box) {
+        box.style.height = heightVal + "px";
+        const img = box.querySelector("img");
+        if (img) {
+            img.style.objectFit = fitMode;
+        }
+    }
+};
+
+window.setProductAspectRatio = function(ratio) {
+    const heightRange = document.getElementById("prodHeightRange");
+    const fitSelect = document.getElementById("prodFitMode");
+    if (ratio === '1:1') {
+        if (heightRange) heightRange.value = 140;
+        if (fitSelect) fitSelect.value = "cover";
+    } else if (ratio === '4:3') {
+        if (heightRange) heightRange.value = 160;
+        if (fitSelect) fitSelect.value = "contain";
+    } else if (ratio === '16:9') {
+        if (heightRange) heightRange.value = 180;
+        if (fitSelect) fitSelect.value = "cover";
+    }
+    updateProductImageFit();
+};
+
+window.applyCanvasResizeProduct = function() {
+    const url = document.getElementById("adminProdImage")?.value;
+    if (!url) {
+        alert("Please upload or enter a product image URL first.");
+        return;
+    }
+    const fitMode = document.getElementById("prodFitMode")?.value || "cover";
+    const heightVal = parseInt(document.getElementById("prodHeightRange")?.value) || 120;
+
+    const canvasWidth = 600;
+    const canvasHeight = Math.round((heightVal / 120) * 600);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function() {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext("2d");
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+
+        if (fitMode === "cover") {
+            const imgAspect = img.width / img.height;
+            const canvasAspect = canvasWidth / canvasHeight;
+            let renderW, renderH, offsetX, offsetY;
+
+            if (imgAspect > canvasAspect) {
+                renderH = canvasHeight;
+                renderW = img.width * (canvasHeight / img.height);
+                offsetX = (canvasWidth - renderW) / 2;
+                offsetY = 0;
+            } else {
+                renderW = canvasWidth;
+                renderH = img.height * (canvasWidth / img.width);
+                offsetX = 0;
+                offsetY = (canvasHeight - renderH) / 2;
+            }
+            ctx.drawImage(img, offsetX, offsetY, renderW, renderH);
+        } else if (fitMode === "contain") {
+            const imgAspect = img.width / img.height;
+            const canvasAspect = canvasWidth / canvasHeight;
+            let renderW, renderH, offsetX, offsetY;
+
+            if (imgAspect > canvasAspect) {
+                renderW = canvasWidth;
+                renderH = img.height * (canvasWidth / img.width);
+                offsetX = 0;
+                offsetY = (canvasHeight - renderH) / 2;
+            } else {
+                renderH = canvasHeight;
+                renderW = img.width * (canvasHeight / img.height);
+                offsetX = (canvasWidth - renderW) / 2;
+                offsetY = 0;
+            }
+            ctx.drawImage(img, offsetX, offsetY, renderW, renderH);
+        } else {
+            ctx.drawImage(img, 0, 0, canvasWidth, canvasHeight);
+        }
+
+        const resizedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+        document.getElementById("adminProdImage").value = resizedDataUrl;
+        previewProductImage(resizedDataUrl);
+        alert(`✂️ Product image successfully resized & cropped to ${canvasWidth}x${canvasHeight} px!`);
+    };
+    img.onerror = function() {
+        alert("Could not load image for canvas cropping. Please verify the image file or URL.");
+    };
+    img.src = url;
+};
+
+window.previewProductImage = function(url) {
+    const box = document.getElementById("adminProdImgPreviewBox");
+    if (!box) return;
+    const fitMode = document.getElementById("prodFitMode")?.value || "cover";
+    if (url && url.length > 5) {
+        box.innerHTML = `<img src="${url}" style="width:100%; height:100%; object-fit:${fitMode};" onerror="this.onerror=null; this.src='https://via.placeholder.com/400x200?text=Invalid+Image'">`;
+    } else {
+        box.innerHTML = `<span style="color:#64748b; font-size:11px; font-weight:700;">Image Preview</span>`;
+    }
+};
+
+window.selectProductPreset = function(type) {
+    const imgInput = document.getElementById("adminProdImage");
+    const nameInput = document.getElementById("adminProdName");
+    const catInput = document.getElementById("adminProdCategory");
+    
+    let url = "";
+    if (type === 'mango') {
+        url = "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80";
+        if (nameInput && !nameInput.value) nameInput.value = "Artisanal Mango Pickle (Amba Ka Achar)";
+        if (catInput) catInput.value = "Mango Pickles";
+    } else if (type === 'lemon') {
+        url = "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80";
+        if (nameInput && !nameInput.value) nameInput.value = "Khatta Meetha Lemon Pickle";
+        if (catInput) catInput.value = "Lemon Pickles";
+    } else if (type === 'chilli') {
+        url = "https://images.unsplash.com/photo-1596040033229-a9821ebd058d?auto=format&fit=crop&w=800&q=80";
+        if (nameInput && !nameInput.value) nameInput.value = "Bharwa Lal Mirch Pickle (Stuffed Red Chilli)";
+        if (catInput) catInput.value = "Chilli Pickles";
+    } else if (type === 'garlic') {
+        url = "https://images.unsplash.com/photo-1599909631369-02eb644910e5?auto=format&fit=crop&w=800&q=80";
+        if (nameInput && !nameInput.value) nameInput.value = "Artisanal Lahsun (Garlic) Pickle";
+        if (catInput) catInput.value = "Special Pickles";
+    }
+
+    if (imgInput) {
+        imgInput.value = url;
+        previewProductImage(url);
+    }
+};
+
+/**
+ * Populate modal for editing existing product
+ */
+function editProductAdmin(id) {
+    const product = allAdminProductsList.find(p => String(p.id) === String(id));
+    if (!product) return;
+
+    document.getElementById("productModalTitle").innerText = "Edit Product";
+    document.getElementById("adminProdId").value = product.id;
+    document.getElementById("adminProdName").value = product.name || "";
+    document.getElementById("adminProdWeight").value = product.weight || "";
+    document.getElementById("adminProdMRP").value = product.mrp || "";
+    document.getElementById("adminProdOfferPrice").value = product.offerPrice || "";
+    document.getElementById("adminProdStock").value = product.stock !== undefined ? product.stock : (product.quantity || 25);
+    document.getElementById("adminProdImage").value = product.image1 || "";
+    document.getElementById("adminProdDesc").value = product.description || "";
+
+    // Set Visibility & Badges Checkboxes
+    const isTrue = (val) => val === true || val === "YES" || String(val).toLowerCase() === "true";
+    if (document.getElementById("adminProdFeatured")) document.getElementById("adminProdFeatured").checked = isTrue(product.featured);
+    if (document.getElementById("adminProdBestSeller")) document.getElementById("adminProdBestSeller").checked = isTrue(product.bestSeller);
+    if (document.getElementById("adminProdNewArrival")) document.getElementById("adminProdNewArrival").checked = isTrue(product.newArrival);
+    if (document.getElementById("adminProdPreOrder")) document.getElementById("adminProdPreOrder").checked = isTrue(product.preOrder || product.isPreOrder);
+    if (document.getElementById("adminProdBulkAvailable")) document.getElementById("adminProdBulkAvailable").checked = isTrue(product.bulkAvailable);
+    if (document.getElementById("adminProdActiveStatus")) document.getElementById("adminProdActiveStatus").checked = (product.status !== "INACTIVE" && product.status !== "DISABLED");
+    if (document.getElementById("adminProdUnder50Off")) document.getElementById("adminProdUnder50Off").checked = isTrue(product.under50Off);
+    if (document.getElementById("adminProdOff50Percent")) document.getElementById("adminProdOff50Percent").checked = isTrue(product.off50Percent);
+    if (document.getElementById("adminProdOff20Percent")) document.getElementById("adminProdOff20Percent").checked = isTrue(product.off20Percent);
+
+    populateProductCategoriesDropdown(product.category);
+    previewProductImage(product.image1 || "");
+    document.getElementById("productModal").style.display = "flex";
+}
+
+/**
+ * Saves product to Spreadsheet / mock backend
+ */
+function saveProductAdmin() {
+    const id = document.getElementById("adminProdId").value;
+    const name = document.getElementById("adminProdName").value.trim();
+    const category = document.getElementById("adminProdCategory").value;
+    const weight = document.getElementById("adminProdWeight").value.trim();
+    const mrp = document.getElementById("adminProdMRP").value;
+    const offerPrice = document.getElementById("adminProdOfferPrice").value;
+    const stock = parseInt(document.getElementById("adminProdStock").value) || 0;
+    const image1 = document.getElementById("adminProdImage").value.trim();
+    const description = document.getElementById("adminProdDesc").value.trim();
+    const createBatch = document.getElementById("adminProdCreateBatch") ? document.getElementById("adminProdCreateBatch").checked : false;
+
+    // Visibility and Badges
+    const featured = document.getElementById("adminProdFeatured") ? document.getElementById("adminProdFeatured").checked : false;
+    const bestSeller = document.getElementById("adminProdBestSeller") ? document.getElementById("adminProdBestSeller").checked : false;
+    const newArrival = document.getElementById("adminProdNewArrival") ? document.getElementById("adminProdNewArrival").checked : false;
+    const preOrderChecked = document.getElementById("adminProdPreOrder") ? document.getElementById("adminProdPreOrder").checked : false;
+    const bulkChecked = document.getElementById("adminProdBulkAvailable") ? document.getElementById("adminProdBulkAvailable").checked : false;
+    const activeChecked = document.getElementById("adminProdActiveStatus") ? document.getElementById("adminProdActiveStatus").checked : true;
+    const under50Off = document.getElementById("adminProdUnder50Off") ? document.getElementById("adminProdUnder50Off").checked : false;
+    const off50Percent = document.getElementById("adminProdOff50Percent") ? document.getElementById("adminProdOff50Percent").checked : false;
+    const off20Percent = document.getElementById("adminProdOff20Percent") ? document.getElementById("adminProdOff20Percent").checked : false;
+
+    if (!name || !weight || !mrp || !offerPrice) {
+        alert("Please fill in all required fields marked with *");
+        return;
+    }
+
+    showLoading();
+    server("saveProduct", {
+        id: id,
+        name: name,
+        category: category,
+        weight: weight,
+        mrp: mrp,
+        offerPrice: offerPrice,
+        stock: stock,
+        quantity: stock,
+        image1: image1,
+        description: description,
+        featured: featured,
+        bestSeller: bestSeller,
+        newArrival: newArrival,
+        preOrder: preOrderChecked ? "YES" : "NO",
+        isPreOrder: preOrderChecked || createBatch,
+        bulkAvailable: bulkChecked ? "YES" : "NO",
+        under50Off: under50Off,
+        off50Percent: off50Percent,
+        off20Percent: off20Percent,
+        offer: (under50Off || off50Percent || off20Percent || (Number(mrp) > Number(offerPrice))),
+        createBatch: createBatch,
+        status: activeChecked ? "ACTIVE" : "INACTIVE"
+    })
+    .then(res => {
+        hideLoading();
+        closeProductModal();
+        alert("Product saved successfully!");
+        loadAdminProductsLogic(); // Refresh list
+    })
+    .catch(err => {
+        hideLoading();
+        alert("Failed to save product: " + err);
+    });
+}
+
+/* =========================================================================
+   GOOGLE SHEET FILE UPLOAD & CONTENT MANAGEMENT LOGIC
+   ========================================================================= */
+
+let parsedImportData = [];
+let uploadedImageFiles = [];
+
+/**
+ * Open File Upload & Google Sheet Import Modal
+ */
+function openSheetUploadModal() {
+    const modal = document.getElementById("sheetUploadModal");
+    if (!modal) return;
+    modal.style.display = "flex";
+    
+    // Reset modal state
+    parsedImportData = [];
+    uploadedImageFiles = [];
+    document.getElementById("sheetImportPreviewContainer").style.display = "none";
+    document.getElementById("imageUploadsPreviewContainer").style.display = "none";
+    const btn = document.getElementById("btnApplySheetImport");
+    if (btn) {
+        btn.disabled = true;
+        btn.style.background = "#cbd5e1";
+        btn.style.color = "#64748b";
+        btn.style.cursor = "not-allowed";
+        btn.innerText = "🚀 Replace Hardcoded Products with Sheet Data";
+    }
+}
+
+function closeSheetUploadModal() {
+    const modal = document.getElementById("sheetUploadModal");
+    if (modal) modal.style.display = "none";
+}
+
+/**
+ * Drag and Drop Event Handlers
+ */
+function handleAdminDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const zone = document.getElementById("adminFileDropZone");
+    if (zone) {
+        zone.style.borderColor = "#16a34a";
+        zone.style.background = "#dcfce7";
+    }
+}
+
+function handleAdminDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const zone = document.getElementById("adminFileDropZone");
+    if (zone) {
+        zone.style.borderColor = "#0b6e38";
+        zone.style.background = "#f0fdf4";
+    }
+}
+
+function handleAdminFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    handleAdminDragLeave(e);
+    
+    const dt = e.dataTransfer;
+    if (dt && dt.files && dt.files.length > 0) {
+        processUploadedAdminFiles(dt.files);
+    }
+}
+
+function handleAdminFileSelect(input) {
+    if (input.files && input.files.length > 0) {
+        processUploadedAdminFiles(input.files);
+    }
+}
+
+/**
+ * Processes dropped/selected CSV, JSON or Image files
+ */
+function processUploadedAdminFiles(files) {
+    let hasSheetFile = false;
+    let imageFiles = [];
+
+    Array.from(files).forEach(file => {
+        const name = file.name.toLowerCase();
+        if (name.endsWith('.csv') || name.endsWith('.json')) {
+            hasSheetFile = true;
+            parseGoogleSheetFile(file);
+        } else if (file.type.startsWith('image/')) {
+            imageFiles.push(file);
+        }
+    });
+
+    if (imageFiles.length > 0) {
+        processAdminImageFiles(imageFiles);
+    }
+}
+
+/**
+ * Parse CSV or JSON exported from Google Sheet
+ */
+function parseGoogleSheetFile(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const text = e.target.result;
+        try {
+            if (file.name.toLowerCase().endsWith('.json')) {
+                const json = JSON.parse(text);
+                parsedImportData = Array.isArray(json) ? json : (json.products || []);
+            } else {
+                parsedImportData = parseCSVToProducts(text);
+            }
+
+            if (parsedImportData.length === 0) {
+                alert("No valid product records found in the uploaded file.");
+                return;
+            }
+
+            // Render Preview Table
+            renderImportPreviewTable(parsedImportData);
+            
+            // Enable Apply button
+            const btn = document.getElementById("btnApplySheetImport");
+            if (btn) {
+                btn.disabled = false;
+                btn.style.background = "#0b6e38";
+                btn.style.color = "white";
+                btn.style.cursor = "pointer";
+                btn.innerText = `🚀 Replace Hardcoded Catalog with ${parsedImportData.length} Sheet Products`;
+            }
+        } catch (err) {
+            console.error("Error parsing Google Sheet file:", err);
+            alert("Error parsing file: " + err.message);
+        }
+    };
+    reader.readAsText(file);
+}
+
+/**
+ * Converts CSV string to array of product objects
+ */
+function parseCSVToProducts(csvText) {
+    const lines = csvText.split(/\r\n|\n/);
+    if (lines.length < 2) return [];
+
+    const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+    const results = [];
+
+    for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+        
+        // Simple CSV splitter handling quotes
+        const values = [];
+        let insideQuote = false;
+        let currentValue = '';
+
+        for (let char of line) {
+            if (char === '"') {
+                insideQuote = !insideQuote;
+            } else if (char === ',' && !insideQuote) {
+                values.push(currentValue.trim().replace(/^"|"$/g, ''));
+                currentValue = '';
+            } else {
+                currentValue += char;
+            }
+        }
+        values.push(currentValue.trim().replace(/^"|"$/g, ''));
+
+        const row = {};
+        headers.forEach((h, index) => {
+            row[h] = values[index] !== undefined ? values[index] : '';
+        });
+
+        // Normalize field names
+        const prod = {
+            id: row.ProductID || row.id || row.ID || ("PRD" + (100 + i)),
+            name: row.Name || row.name || row.ProductName || `Jar Product ${i}`,
+            category: row.Category || row.category || "Special Pickles",
+            mrp: Number(row.MRP || row.mrp || row.Price || 299),
+            offerPrice: Number(row.OfferPrice || row.offerPrice || row.price || 249),
+            weight: row.Weight || row.weight || "500g Jar",
+            stock: Number(row.Stock || row.stock || row.Quantity || 50),
+            image1: row.Image1 || row.image1 || row.Image || row.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80",
+            image2: row.Image2 || row.image2 || "",
+            image3: row.Image3 || row.image3 || "",
+            description: row.Description || row.description || "Handcrafted traditional recipe prepared with sun-dried spices."
+        };
+
+        results.push(prod);
+    }
+
+    return results;
+}
+
+/**
+ * Renders table preview of parsed CSV rows
+ */
+function renderImportPreviewTable(products) {
+    const container = document.getElementById("sheetImportPreviewContainer");
+    const tableDiv = document.getElementById("importPreviewTable");
+    const countBadge = document.getElementById("importRowsCountBadge");
+
+    if (!container || !tableDiv) return;
+
+    container.style.display = "block";
+    if (countBadge) countBadge.innerText = `${products.length} Products Found`;
+
+    let html = `
+    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+       <thead>
+          <tr style="background:#f1f5f9; text-align:left; color:#475569;">
+             <th style="padding:6px;">ID</th>
+             <th style="padding:6px;">Product Name</th>
+             <th style="padding:6px;">Category</th>
+             <th style="padding:6px;">Price</th>
+             <th style="padding:6px;">Description</th>
+          </tr>
+       </thead>
+       <tbody>`;
+
+    products.forEach((p, idx) => {
+        html += `
+        <tr style="border-bottom:1px solid #f1f5f9;">
+           <td style="padding:6px; font-weight:800; color:#0b6e38;">${p.id}</td>
+           <td style="padding:6px; font-weight:700; color:#1e293b;">${p.name}</td>
+           <td style="padding:6px; color:#64748b;">${p.category}</td>
+           <td style="padding:6px; font-weight:800; color:#0f172a;">₹${p.offerPrice}</td>
+           <td style="padding:6px; color:#64748b; max-width:140px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${p.description}</td>
+        </tr>`;
+    });
+
+    html += `</tbody></table>`;
+    tableDiv.innerHTML = html;
+}
+
+/**
+ * Reads uploaded image files as Base64 Data URLs
+ */
+function processAdminImageFiles(files) {
+    const container = document.getElementById("imageUploadsPreviewContainer");
+    const grid = document.getElementById("imageFilesThumbGrid");
+    if (!container || !grid) return;
+
+    container.style.display = "block";
+
+    Array.from(files).forEach((file, idx) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const dataUrl = e.target.result;
+            uploadedImageFiles.push({ name: file.name, dataUrl });
+
+            const itemHtml = `
+            <div style="background:white; border-radius:10px; border:1px solid #fecdd3; padding:6px; text-align:center;">
+               <img src="${dataUrl}" style="width:100%; height:65px; object-fit:cover; border-radius:6px; margin-bottom:4px;">
+               <small style="font-size:9px; color:#991b1b; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${file.name}</small>
+               <button type="button" onclick="assignUploadedImageToProduct('${dataUrl}')" style="margin-top:4px; width:100%; padding:3px; background:#be123c; color:white; border:none; border-radius:4px; font-size:9px; font-weight:800; cursor:pointer;">
+                  Assign to Product
+               </button>
+            </div>`;
+
+            grid.insertAdjacentHTML('beforeend', itemHtml);
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+/**
+ * Quick assign image to product dropdown / primary image
+ */
+function assignUploadedImageToProduct(dataUrl) {
+    if (allAdminProductsList.length === 0) {
+        alert("Please load products list first.");
+        return;
+    }
+
+    const prodNames = allAdminProductsList.map((p, i) => `${i+1}. ${p.name} (${p.id})`).join("\n");
+    const choice = prompt(`Select Product Number to assign this uploaded image:\n\n${prodNames}`, "1");
+    if (!choice) return;
+
+    const index = parseInt(choice) - 1;
+    if (isNaN(index) || index < 0 || index >= allAdminProductsList.length) {
+        alert("Invalid product selection.");
+        return;
+    }
+
+    const targetProduct = allAdminProductsList[index];
+    showLoading();
+    server("uploadProductImage", {
+        id: targetProduct.id,
+        imageField: "image1",
+        imageData: dataUrl
+    }).then(res => {
+        hideLoading();
+        alert(`Image successfully assigned to ${targetProduct.name}!`);
+        loadAdminProductsLogic();
+    }).catch(err => {
+        hideLoading();
+        alert("Failed to upload image: " + err);
+    });
+}
+
+/**
+ * Applies Google Sheet import to backend
+ */
+function applyGoogleSheetImport() {
+    if (parsedImportData.length === 0) return;
+
+    showLoading();
+    server("importProductsFromSheet", {
+        products: parsedImportData,
+        overwrite: true
+    }).then(res => {
+        hideLoading();
+        closeSheetUploadModal();
+        
+        // Update status badge
+        const badge = document.getElementById("sheetSyncBadge");
+        if (badge) {
+            badge.innerText = `🟢 ${res.count} Dynamic Products Live`;
+            badge.style.background = "#dcfce7";
+            badge.style.color = "#166534";
+        }
+
+        alert(`Success! ${res.count || parsedImportData.length} products updated from Google Sheet file.`);
+        loadAdminProductsLogic();
+    }).catch(err => {
+        hideLoading();
+        alert("Failed to import Google Sheet products: " + err);
+    });
+}
+
+/**
+ * Open Bulk Content & Image Replacer Modal
+ */
+function openBulkContentReplacerModal() {
+    const modal = document.getElementById("bulkContentReplacerModal");
+    if (!modal) return;
+
+    modal.style.display = "flex";
+    renderBulkContentReplacerCards();
+}
+
+function closeBulkContentReplacerModal() {
+    const modal = document.getElementById("bulkContentReplacerModal");
+    if (modal) modal.style.display = "none";
+}
+
+/**
+ * Renders product cards for bulk image & description editing
+ */
+function renderBulkContentReplacerCards() {
+    const container = document.getElementById("bulkProductContentCardsList");
+    if (!container) return;
+
+    if (allAdminProductsList.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:30px; color:#64748b;">No products loaded. Please refresh catalog.</div>`;
+        return;
+    }
+
+    let html = "";
+    allAdminProductsList.forEach((p, i) => {
+        const img = (p.image1 && p.image1.length > 10) ? p.image1 : 'https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80';
+        
+        html += `
+        <div class="bulk-prod-card" data-id="${p.id}" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:16px; padding:14px;">
+           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+              <span style="font-size:12px; font-weight:900; color:#0b6e38; background:#dcfce7; padding:2px 8px; border-radius:6px;">${p.id}</span>
+              <span style="font-size:12px; font-weight:800; color:#1e293b;">${p.name}</span>
+           </div>
+
+           <div style="display:flex; gap:12px; align-items:flex-start; margin-bottom:10px;">
+              <div style="width:80px; text-align:center;">
+                 <img id="bulkImgPrev_${p.id}" src="${img}" style="width:80px; height:80px; border-radius:10px; object-fit:cover; border:1px solid #cbd5e1; margin-bottom:4px;">
+                 <input type="file" id="bulkFileInput_${p.id}" accept="image/*" style="display:none;" onchange="handleBulkCardFileUpload('${p.id}', this)">
+                 <button type="button" onclick="document.getElementById('bulkFileInput_${p.id}').click()" style="width:100%; padding:4px; background:#0b6e38; color:white; border:none; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer;">
+                    📁 Change
+                 </button>
+              </div>
+
+              <div style="flex:1;">
+                 <label style="font-size:10px; font-weight:800; color:#475569; display:block; margin-bottom:2px;">Product Image URL or Base64:</label>
+                 <input type="text" id="bulkImgUrl_${p.id}" value="${img}" oninput="document.getElementById('bulkImgPrev_${p.id}').src = this.value" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px; margin-bottom:8px;">
+
+                 <label style="font-size:10px; font-weight:800; color:#475569; display:block; margin-bottom:2px;">Description (Replaces Default Copy):</label>
+                 <textarea id="bulkDesc_${p.id}" rows="2" style="width:100%; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px;">${p.description || ''}</textarea>
+              </div>
+           </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Handle file upload inside bulk card
+ */
+function handleBulkCardFileUpload(productId, fileInput) {
+    if (!fileInput.files || !fileInput.files[0]) return;
+    const file = fileInput.files[0];
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const dataUrl = e.target.result;
+        const imgInput = document.getElementById(`bulkImgUrl_${productId}`);
+        const imgPrev = document.getElementById(`bulkImgPrev_${productId}`);
+        if (imgInput) imgInput.value = dataUrl;
+        if (imgPrev) imgPrev.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+}
+
+/**
+ * Saves all bulk content edits to backend
+ */
+function saveBulkProductContentChanges() {
+    const cards = document.querySelectorAll(".bulk-prod-card");
+    if (cards.length === 0) return;
+
+    const updates = [];
+    cards.forEach(card => {
+        const id = card.getAttribute("data-id");
+        const image1 = document.getElementById(`bulkImgUrl_${id}`) ? document.getElementById(`bulkImgUrl_${id}`).value.trim() : "";
+        const description = document.getElementById(`bulkDesc_${id}`) ? document.getElementById(`bulkDesc_${id}`).value.trim() : "";
+
+        updates.push({
+            id: id,
+            image1: image1,
+            description: description
+        });
+    });
+
+    showLoading();
+    server("saveBulkProductContent", updates)
+    .then(res => {
+        hideLoading();
+        closeBulkContentReplacerModal();
+        alert("All product images and descriptions saved successfully!");
+        loadAdminProductsLogic();
+    })
+    .catch(err => {
+        hideLoading();
+        alert("Failed to save bulk changes: " + err);
+    });
+}
+
+/**
+ * Auto fill high quality pickle images from Unsplash
+ */
+function fetchAndAutoFillUnsplashPickleImages() {
+    const picklePhotos = [
+        "https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=800&q=80",
+        "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80"
+    ];
+
+    allAdminProductsList.forEach((p, idx) => {
+        const photo = picklePhotos[idx % picklePhotos.length];
+        const urlInput = document.getElementById(`bulkImgUrl_${p.id}`);
+        const prevImg = document.getElementById(`bulkImgPrev_${p.id}`);
+        if (urlInput) urlInput.value = photo;
+        if (prevImg) prevImg.src = photo;
+    });
+
+    alert("Auto-filled high-resolution HD pickle photos across all products! Click 'Save All Images & Descriptions' to apply.");
+}
+
+/**
+ * Generate and download sample CSV template for Google Sheet export
+ */
+function downloadSampleProductCSV() {
+    const sampleCsv = `ProductID,Name,Category,MRP,OfferPrice,Weight,Stock,Image1,Description
+PRD101,Ramkella Raw Mango Pickle,Mango Pickles,299,249,500g Jar,50,https://images.unsplash.com/photo-1589927986089-35812388d1f4?auto=format&fit=crop&w=800&q=80,Authentic homemade Ramkella raw mango pickle prepared with mustard oil and traditional spices.
+PRD102,Sun-Aged Spicy Lemon Pickle,Lemon Pickles,249,199,500g Jar,40,https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80,Sun-fermented paper-thin lemon pickle infused with rock salt and roasted cumin.
+PRD103,Banarasi Stuffed Red Chilli Pickle,Chilli Pickles,349,299,500g Jar,35,https://images.unsplash.com/photo-1618160702438-9b02ab6515c9?auto=format&fit=crop&w=800&q=80,Hand-stuffed whole red chillies aged in cold-pressed mustard oil with aromatic spices.
+PRD104,Special Mixed Vegetable Pickle,Special Pickles,279,229,500g Jar,60,https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=800&q=80,Crispy carrots, turnips, and green chillies pickled in traditional Punjabi masala.`;
+
+    const blob = new Blob([sampleCsv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "aaharshree_products_google_sheet_template.csv");
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+

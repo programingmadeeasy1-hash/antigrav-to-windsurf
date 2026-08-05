@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><?= businessName ?></title>
+    
+    <!-- Load Styles -->
+    <?!= include('Style'); ?>
+  </head>
+  <body>
+    
+    <!-- Global Loader Overlay -->
+    <div id="globalLoader" class="loader-overlay" style="display:none;">
+      <div class="spinner"></div>
+      <p id="loaderText" style="color:white; margin-top:10px; font-weight:bold;">Loading...</p>
+    </div>
+
+    <!-- The App Container -->
+    <div id="app-root">
+       <!-- All your screens will be included here -->
+       <?!= include('Splash'); ?>
+       <?!= include('Login'); ?>
+       <?!= include('Register'); ?>
+       <?!= include('Home'); ?>
+       <?!= include('Dashboard'); ?>
+       <?!= include('Coupons'); ?>
+       <?!= include('Checkout'); ?>
+       <?!= include('Cart'); ?>
+       <?!= include('Profile'); ?>
+       <?!= include('MyOrders'); ?>
+       <?!= include('Orders'); ?>
+       <?!= include('Inventory'); ?>
+       <?!= include('Customers'); ?>
+       <?!= include('Settings'); ?>
+       <?!= include('Sliders'); ?>
+       <?!= include('SpecialOrders'); ?>
+       <?!= include('Analytics'); ?>
+       <?!= include('Categories'); ?>
+       <?!= include('Products'); ?>
+       <?!= include('AdminProfile'); ?>
+       <?!= include('Sidebar'); ?>
+       <?!= include('Product'); ?>
+       <?!= include('CategoryProducts'); ?>
+       <?!= include('Address'); ?>
+       <?!= include('ReviewsAdminModal'); ?>
+    </div>
+
+    <!-- Global Scripts -->
+    <?!= include('Script'); ?>
+    
+    <!-- Page Specific Scripts -->
+    <?!= include('HomeJS'); ?>
+    <?!= include('LoginJS'); ?>
+    <?!= include('RegisterJS'); ?>
+    <?!= include('DashboardJS'); ?>
+    <?!= include('CategoriesJS'); ?>
+    <?!= include('ProductsJS'); ?>
+    <?!= include('AdminProfileJS'); ?>
+    <?!= include('CouponsJS'); ?>
+    <?!= include('CheckoutJS'); ?>
+    <?!= include('CartJS'); ?>
+    <?!= include('ProfileJS'); ?>
+    <?!= include('MyOrdersJS'); ?>
+    <?!= include('OrdersJS'); ?>
+    <?!= include('InventoryJS'); ?>
+    <?!= include('CustomersJS'); ?>
+    <?!= include('SettingsJS'); ?>
+    <?!= include('SlidersJS'); ?>
+    <?!= include('SpecialOrdersJS'); ?>
+    <?!= include('AnalyticsJS'); ?>
+    <?!= include('ProductJS'); ?>
+    <?!= include('CategoryProductsJS'); ?>
+    <?!= include('UploadJS'); ?>
+    <?!= include('ReviewsAdminJS'); ?>
+
+    <!-- Fail-Safe Global Splash Removal Backup -->
+    <script>
+      setTimeout(function() {
+        var s = document.getElementById('splashScreen');
+        if (s) {
+          s.style.opacity = '0';
+          s.style.pointerEvents = 'none';
+          setTimeout(function() {
+            if (s && s.parentNode) s.parentNode.removeChild(s);
+            var login = document.getElementById('loginScreen');
+            var activeScreen = document.querySelector('.screen.active');
+            if (!activeScreen && login) {
+              login.classList.add('active');
+              login.style.display = 'block';
+            }
+          }, 200);
+        }
+      }, 1500);
+    </script>
+  </body>
+</html>

@@ -1,0 +1,167 @@
+<!-- ADMIN REVIEWS MANAGEMENT MODAL -->
+<div id="adminReviewsModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.65); z-index:999999; backdrop-filter:blur(4px); justify-content:center; align-items:center; padding:12px;">
+   <div style="background:white; width:100%; max-width:760px; max-height:92vh; border-radius:24px; box-shadow:0 25px 50px rgba(0,0,0,0.3); display:flex; flex-direction:column; overflow:hidden;">
+      
+      <!-- MODAL HEADER -->
+      <div style="background:linear-gradient(135deg, #1e1b4b 0%, #312e81 100%); color:white; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #4338ca;">
+         <div>
+            <div style="display:flex; align-items:center; gap:8px;">
+               <span style="font-size:20px;">💬</span>
+               <h3 style="margin:0; font-size:17px; font-weight:900; letter-spacing:0.3px;">Customer Reviews Management</h3>
+            </div>
+            <p style="margin:4px 0 0 0; font-size:11px; color:#c7d2fe; opacity:0.9;">Moderate, edit, approve or remove reviews to keep store content top-quality</p>
+         </div>
+         <button type="button" onclick="closeAdminReviewsModal()" style="background:rgba(255,255,255,0.15); border:none; color:white; width:34px; height:34px; border-radius:50%; font-size:16px; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background 0.2s;">
+            ✕
+         </button>
+      </div>
+
+      <!-- MODAL BODY -->
+      <div style="padding:16px; overflow-y:auto; flex:1; background:#f8fafc;">
+         
+         <!-- STATS METRICS SUMMARY BAR -->
+         <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:10px; margin-bottom:14px;">
+            <div style="background:white; border-radius:14px; padding:10px; border:1px solid #e2e8f0; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+               <span style="font-size:10px; font-weight:800; color:#64748b; display:block; text-transform:uppercase;">Total Reviews</span>
+               <span id="revStatTotal" style="font-size:18px; font-weight:900; color:#1e293b;">0</span>
+            </div>
+            <div style="background:#fff7ed; border-radius:14px; padding:10px; border:1px solid #ffedd5; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+               <span style="font-size:10px; font-weight:800; color:#c2410c; display:block; text-transform:uppercase;">⏳ Pending</span>
+               <span id="revStatPending" style="font-size:18px; font-weight:900; color:#c2410c;">0</span>
+            </div>
+            <div style="background:#f0fdf4; border-radius:14px; padding:10px; border:1px solid #dcfce7; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+               <span style="font-size:10px; font-weight:800; color:#15803d; display:block; text-transform:uppercase;">✅ Approved</span>
+               <span id="revStatApproved" style="font-size:18px; font-weight:900; color:#15803d;">0</span>
+            </div>
+            <div style="background:#fefce8; border-radius:14px; padding:10px; border:1px solid #fef08a; text-align:center; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+               <span style="font-size:10px; font-weight:800; color:#a16207; display:block; text-transform:uppercase;">Avg Rating</span>
+               <span id="revStatAvg" style="font-size:18px; font-weight:900; color:#a16207;">5.0 ⭐</span>
+            </div>
+         </div>
+
+         <!-- TOOLBAR & ACTIONS -->
+         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+            <!-- STATUS TABS -->
+            <div style="display:flex; background:#e2e8f0; padding:3px; border-radius:12px; gap:2px;">
+               <button type="button" id="revTabBtnAll" onclick="filterAdminReviewsByTab('ALL')" style="padding:6px 12px; border-radius:10px; border:none; font-size:11px; font-weight:800; cursor:pointer; background:white; color:#0f172a; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                  All (<span id="revTabCountAll">0</span>)
+               </button>
+               <button type="button" id="revTabBtnPending" onclick="filterAdminReviewsByTab('PENDING')" style="padding:6px 12px; border-radius:10px; border:none; font-size:11px; font-weight:800; cursor:pointer; background:transparent; color:#64748b;">
+                  ⏳ Pending (<span id="revTabCountPending">0</span>)
+               </button>
+               <button type="button" id="revTabBtnApproved" onclick="filterAdminReviewsByTab('APPROVED')" style="padding:6px 12px; border-radius:10px; border:none; font-size:11px; font-weight:800; cursor:pointer; background:transparent; color:#64748b;">
+                  ✅ Approved (<span id="revTabCountApproved">0</span>)
+               </button>
+               <button type="button" id="revTabBtnRejected" onclick="filterAdminReviewsByTab('REJECTED')" style="padding:6px 12px; border-radius:10px; border:none; font-size:11px; font-weight:800; cursor:pointer; background:transparent; color:#64748b;">
+                  ❌ Rejected (<span id="revTabCountRejected">0</span>)
+               </button>
+            </div>
+
+            <!-- ACTION BUTTONS -->
+            <div style="display:flex; gap:8px;">
+               <button type="button" onclick="bulkApprovePendingReviewsAdmin()" style="background:#15803d; color:white; border:none; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; box-shadow:0 2px 6px rgba(21,128,61,0.2);">
+                  <span>⚡</span> Approve All Pending
+               </button>
+               <button type="button" onclick="openCraftReviewModal()" style="background:#4338ca; color:white; border:none; padding:8px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; gap:5px; box-shadow:0 2px 6px rgba(67,56,202,0.2);">
+                  <span>➕</span> Add Review
+               </button>
+            </div>
+         </div>
+
+         <!-- SEARCH & PRODUCT FILTER ROW -->
+         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+            <input type="text" id="adminRevSearchInput" placeholder="🔍 Search by customer, comment, product..." oninput="renderAdminReviewsCards()" style="width:100%; padding:9px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:12px; background:white;">
+            
+            <select id="adminRevProductFilter" onchange="renderAdminReviewsCards()" style="width:100%; padding:9px 12px; border-radius:10px; border:1px solid #cbd5e1; font-size:12px; background:white;">
+               <option value="ALL">All Pickle Products</option>
+            </select>
+         </div>
+
+         <!-- REVIEWS LIST CARDS CONTAINER -->
+         <div id="adminReviewsCardsContainer" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="text-align:center; padding:30px; color:#64748b; font-size:12px;">Loading reviews database...</div>
+         </div>
+
+      </div>
+
+      <!-- FOOTER -->
+      <div style="padding:12px 20px; background:white; border-top:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+         <span style="font-size:11px; color:#64748b; font-weight:600;">🔒 Store Moderator Controls Active</span>
+         <button type="button" onclick="closeAdminReviewsModal()" style="padding:8px 16px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer;">
+            Close
+         </button>
+      </div>
+
+   </div>
+</div>
+
+<!-- CRAFT / EDIT REVIEW SUB-MODAL -->
+<div id="adminEditReviewModalOverlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999999; backdrop-filter:blur(4px); justify-content:center; align-items:center; padding:15px;">
+   <div style="background:white; width:100%; max-width:480px; border-radius:20px; box-shadow:0 20px 40px rgba(0,0,0,0.3); display:flex; flex-direction:column; overflow:hidden;">
+      
+      <div style="background:#312e81; color:white; padding:14px 18px; display:flex; justify-content:space-between; align-items:center;">
+         <h4 id="editRevModalTitle" style="margin:0; font-size:14px; font-weight:900;">✏️ Edit Customer Review</h4>
+         <button type="button" onclick="closeCraftReviewModal()" style="background:rgba(255,255,255,0.2); border:none; color:white; width:28px; height:28px; border-radius:50%; font-size:14px; font-weight:bold; cursor:pointer;">✕</button>
+      </div>
+
+      <div style="padding:16px; overflow-y:auto; max-height:80vh;">
+         <input type="hidden" id="editRevId" value="">
+
+         <div style="margin-bottom:10px;">
+            <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Target Product:</label>
+            <select id="editRevProductId" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; background:white;"></select>
+         </div>
+
+         <div style="margin-bottom:10px;">
+            <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Customer Name:</label>
+            <input type="text" id="editRevCustomerName" placeholder="e.g. Anjali Sharma" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px;">
+         </div>
+
+         <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+            <div>
+               <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Rating Stars:</label>
+               <select id="editRevRating" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; background:white;">
+                  <option value="5">⭐⭐⭐⭐⭐ (5/5 Excellent)</option>
+                  <option value="4">⭐⭐⭐⭐ (4/5 Very Good)</option>
+                  <option value="3">⭐⭐⭐ (3/5 Average)</option>
+                  <option value="2">⭐⭐ (2/5 Below Average)</option>
+                  <option value="1">⭐ (1/5 Poor)</option>
+               </select>
+            </div>
+
+            <div>
+               <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Moderation Status:</label>
+               <select id="editRevStatus" style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; background:white;">
+                  <option value="APPROVED">✅ APPROVED (Live)</option>
+                  <option value="PENDING">⏳ PENDING (Under Review)</option>
+                  <option value="REJECTED">❌ REJECTED (Hidden)</option>
+               </select>
+            </div>
+         </div>
+
+         <div style="margin-bottom:10px;">
+            <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Customer Review Comment:</label>
+            <textarea id="editRevComment" rows="4" placeholder="Write review details..." style="width:100%; padding:9px; border-radius:8px; border:1px solid #cbd5e1; font-size:12px; resize:none;"></textarea>
+         </div>
+
+         <div style="display:flex; justify-content:space-between; align-items:center; background:#f1f5f9; padding:10px; border-radius:10px; margin-bottom:14px;">
+            <div>
+               <span style="font-size:11px; font-weight:800; color:#1e293b; display:block;">Verified Buyer Badge</span>
+               <span style="font-size:10px; color:#64748b;">Show green verified badge on review card</span>
+            </div>
+            <input type="checkbox" id="editRevVerified" checked style="width:18px; height:18px; cursor:pointer;">
+         </div>
+
+         <div style="display:flex; gap:10px;">
+            <button type="button" onclick="closeCraftReviewModal()" style="flex:1; padding:10px; background:#f1f5f9; color:#475569; border:none; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer;">
+               Cancel
+            </button>
+            <button type="button" onclick="saveAdminReviewSubmit()" style="flex:2; padding:10px; background:#312e81; color:white; border:none; border-radius:10px; font-weight:800; font-size:12px; cursor:pointer; box-shadow:0 3px 10px rgba(49,46,129,0.3);">
+               💾 Save Review
+            </button>
+         </div>
+
+      </div>
+
+   </div>
+</div>

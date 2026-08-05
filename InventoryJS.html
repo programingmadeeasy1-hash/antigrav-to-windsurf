@@ -1,0 +1,108 @@
+<script>
+let allInventoryData = [];
+
+/**
+ * Loads inventory data from backend Spreadsheet
+ */
+function loadInventory() {
+    showLoading();
+    console.log("Admin: Fetching inventory...");
+
+    server("getInventoryList").then(data => {
+        hideLoading();
+        allInventoryData = data || [];
+        renderInventoryTable(allInventoryData);
+    }).catch(err => {
+        hideLoading();
+        console.error("Inventory Load Error:", err);
+        const body = document.getElementById("inventoryTableBody");
+        if (body) body.innerHTML = `<tr><td colspan="5" style="text-align:center; color:red; padding:20px;">Failed to load stock: ${err}</td></tr>`;
+    });
+}
+
+/**
+ * Renders stock rows in table
+ */
+function renderInventoryTable(items) {
+    const body = document.getElementById("inventoryTableBody");
+    if (!body) return;
+
+    if (!items || items.length === 0) {
+        body.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:#999;">No products/stock records found.</td></tr>`;
+        return;
+    }
+
+    let html = "";
+    items.forEach(item => {
+        // Highlight low stock
+        const stockNum = Number(item.stock || 0);
+        const isLow = stockNum <= 5;
+        const stockStyle = isLow 
+            ? "color:red; font-weight:800; background:#ffebee; padding:4px 8px; border-radius:6px; display:inline-block;" 
+            : "font-weight:700; color:#2e7d32;";
+
+        html += `
+        <tr style="border-bottom:1px solid #f9f9f9;">
+          <td style="padding:12px 5px; font-weight:700; color:#333;">
+             ${item.name}
+             <div style="font-size:10px; color:#888; font-weight:normal;">ID: ${item.id}</div>
+          </td>
+          <td style="padding:12px 5px; text-align:center; color:#555;">${item.weight || 'Std'}</td>
+          <td style="padding:12px 5px; text-align:center; font-weight:700;">₹${item.price}</td>
+          <td style="padding:12px 5px; text-align:center;">
+             <span id="stock-val-${item.id}" style="${stockStyle}">${stockNum}</span>
+          </td>
+          <td style="padding:12px 5px; text-align:right;">
+             <button onclick="quickUpdateStock('${item.id}', ${stockNum})" 
+                     style="background:var(--primary); color:white; border:none; padding:6px 10px; border-radius:8px; font-weight:700; font-size:11px; cursor:pointer;">
+                Update
+             </button>
+          </td>
+        </tr>`;
+    });
+
+    body.innerHTML = html;
+}
+
+/**
+ * Filter inventory table by search text
+ */
+function filterInventoryTable() {
+    const query = document.getElementById("inventorySearch").value.toLowerCase().trim();
+    if (!query) {
+        renderInventoryTable(allInventoryData);
+        return;
+    }
+    const filtered = allInventoryData.filter(i => 
+        (i.name && i.name.toLowerCase().includes(query)) ||
+        (i.id && i.id.toLowerCase().includes(query))
+    );
+    renderInventoryTable(filtered);
+}
+
+/**
+ * Prompts admin to set a new stock level
+ */
+function quickUpdateStock(productId, currentStock) {
+    const newStockStr = prompt(`Update stock quantity for Product ID (${productId}):`, currentStock);
+    if (newStockStr === null) return; // User cancelled
+
+    const newStock = parseInt(newStockStr, 10);
+    if (isNaN(newStock) || newStock < 0) {
+        alert("Please enter a valid non-negative number.");
+        return;
+    }
+
+    showLoading();
+    server("updateProductStock", { id: productId, newStock: newStock })
+    .then(res => {
+        hideLoading();
+        alert("Stock updated successfully!");
+        loadInventory(); // Refresh view
+    })
+    .catch(err => {
+        hideLoading();
+        alert("Failed to update stock: " + err);
+    });
+}
+</script>

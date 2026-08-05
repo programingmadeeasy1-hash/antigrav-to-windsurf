@@ -1,0 +1,313 @@
+<script>
+/**
+ * Admin Profile & Role Hierarchy JavaScript
+ */
+let adminStaffList = [];
+
+window.openAdminProfile = function() {
+    console.log("Opening Admin Profile & Staff Hierarchy...");
+    showScreen("adminProfileScreen");
+
+    // Populate currently logged in admin details
+    const currentAdmin = App.user || { name: "AaharShree Owner Admin", mobile: "9876543210", email: "admin@aaharshree.com" };
+    
+    const nameEl = document.getElementById("adminProfName");
+    const mobileEl = document.getElementById("adminProfMobile");
+    const emailEl = document.getElementById("adminProfEmail");
+
+    if (nameEl) nameEl.innerText = currentAdmin.name || "AaharShree Master Admin";
+    if (mobileEl) mobileEl.innerText = currentAdmin.mobile ? "+91 " + currentAdmin.mobile : "+91 9876543210";
+    if (emailEl) emailEl.innerText = currentAdmin.email || "admin@aaharshree.com";
+
+    loadAdminStaffDirectory();
+};
+
+window.loadAdminStaffDirectory = function() {
+    if (typeof showLoading === 'function') showLoading("Loading admin staff list...");
+
+    server("getAdminStaffList").then(staff => {
+        if (typeof hideLoading === 'function') hideLoading();
+        adminStaffList = Array.isArray(staff) ? staff : [];
+        renderAdminStaffList(adminStaffList);
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Error loading admin staff:", err);
+        adminStaffList = [];
+        renderAdminStaffList([]);
+    });
+};
+
+function renderAdminStaffList(staff) {
+    const listEl = document.getElementById("adminStaffList");
+    const countEl = document.getElementById("adminStaffCount");
+    if (countEl) countEl.innerText = staff ? staff.length : 0;
+
+    if (!listEl) return;
+
+    if (!staff || staff.length === 0) {
+        listEl.innerHTML = `<p style="text-align:center; padding:20px; color:#94a3b8; font-size:12px;">No additional admin staff registered.</p>`;
+        return;
+    }
+
+    let html = "";
+    staff.forEach(s => {
+        let tierBadge = `<span style="background:#dcfce7; color:#15803d; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">👑 Level 1 Master Owner</span>`;
+        if (s.tier === "TIER2_MANAGER") {
+            tierBadge = `<span style="background:#dbeafe; color:#1e40af; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">🛡️ Level 2 Operations Mgr</span>`;
+        } else if (s.tier === "TIER3_LOGISTICS" || s.tier === "TIER3_STAFF") {
+            tierBadge = `<span style="background:#fef9c3; color:#a16207; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">🚚 Level 3 Inventory & Logistics</span>`;
+        } else if (s.tier === "TIER4_SUPPORT") {
+            tierBadge = `<span style="background:#f3e8ff; color:#6b21a8; font-size:10px; font-weight:800; padding:2px 8px; border-radius:8px;">🎧 Level 4 Support Operator</span>`;
+        }
+
+        const isSuspended = s.status === "SUSPENDED" || s.active === false;
+        const statusBadge = isSuspended 
+            ? `<span style="background:#fee2e2; color:#991b1b; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">SUSPENDED</span>`
+            : `<span style="background:#d1fae5; color:#065f46; font-size:10px; font-weight:800; padding:2px 6px; border-radius:6px;">ACTIVE</span>`;
+
+        const displayAdminId = s.adminId || s.id || "ADM101";
+        const displayPwd = s.password ? s.password : "••••••••";
+        const emailNotice = s.email ? `✉️ ${s.email}` : 'No email set';
+
+        html += `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+           <div>
+              <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+                 <strong style="font-size:13px; color:#0f172a;">${s.name}</strong>
+                 <span style="font-size:11px; font-weight:800; background:#e2e8f0; color:#334155; padding:2px 6px; border-radius:6px;">ID: ${displayAdminId}</span>
+                 ${tierBadge}
+                 ${statusBadge}
+              </div>
+              <div style="font-size:11px; color:#64748b; line-height:1.4;">
+                 <span>🔑 Password: <strong style="color:#0f172a;">${displayPwd}</strong></span> &nbsp;|&nbsp;
+                 <span>📱 +91 ${s.mobile || 'N/A'}</span> &nbsp;|&nbsp; 
+                 <span>${emailNotice}</span> &nbsp;|&nbsp; 
+                 <span>📍 ${s.branch || 'Main HQ'}</span>
+              </div>
+           </div>
+           
+           <div style="display:flex; gap:6px;">
+              <button onclick="editAdminStaff('${displayAdminId}')" style="background:#e0f2fe; color:#0369a1; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                 Edit / Authority
+              </button>
+              <button onclick="toggleAdminStaffStatus('${displayAdminId}')" style="background:${isSuspended ? '#d1fae5' : '#fee2e2'}; color:${isSuspended ? '#065f46' : '#991b1b'}; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">
+                 ${isSuspended ? 'Activate' : 'Suspend'}
+              </button>
+              <button onclick="deleteAdminStaff('${displayAdminId}')" style="background:#f1f5f9; color:#64748b; border:1px solid #cbd5e1; padding:6px 10px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;" title="Delete Staff Account">
+                 🗑️
+              </button>
+           </div>
+        </div>`;
+    });
+
+    listEl.innerHTML = html;
+}
+
+window.selectAuthorityTier = function(tierVal) {
+    const selectEl = document.getElementById("staffTier");
+    if (selectEl) {
+        selectEl.value = tierVal;
+    }
+    window.updateAuthorityPermissionsPreview();
+};
+
+window.updateAuthorityPermissionsPreview = function() {
+    const selectEl = document.getElementById("staffTier");
+    const tier = selectEl ? selectEl.value : "TIER2_MANAGER";
+    const listEl = document.getElementById("authorityPermissionsList");
+
+    // Highlight active authority card
+    const tiers = ["TIER1_MASTER", "TIER2_MANAGER", "TIER3_LOGISTICS", "TIER4_SUPPORT"];
+    tiers.forEach(t => {
+        const card = document.getElementById("card_" + t);
+        if (card) {
+            const isMatch = (t === tier) || (t === "TIER3_LOGISTICS" && tier === "TIER3_STAFF");
+            if (isMatch) {
+                card.style.border = "2px solid #0b6e38";
+                card.style.background = "#f0fdf4";
+                card.style.boxShadow = "0 2px 8px rgba(11,110,56,0.15)";
+            } else {
+                card.style.border = "1.5px solid #cbd5e1";
+                card.style.background = "#ffffff";
+                card.style.boxShadow = "none";
+            }
+        }
+    });
+
+    if (!listEl) return;
+
+    let perms = [];
+    if (tier === "TIER1_MASTER") {
+        perms = [
+            "✅ Full Master System Access",
+            "✅ Revenue & Analytics Reports",
+            "✅ Admin Staff Appoint & Roles",
+            "✅ Master Emergency Shutdown",
+            "✅ Catalog & Price Editing",
+            "✅ Order Status Management"
+        ];
+    } else if (tier === "TIER2_MANAGER") {
+        perms = [
+            "✅ Product & Category Catalog",
+            "✅ Order Dispatch & Fulfillment",
+            "✅ Coupons & Pre-Order Batches",
+            "✅ Stock Quantity Adjustments",
+            "❌ Emergency Shutdown (Locked)",
+            "❌ Financial Revenue (Locked)"
+        ];
+    } else if (tier === "TIER3_LOGISTICS" || tier === "TIER3_STAFF") {
+        perms = [
+            "✅ View Dispatch Lists & Labels",
+            "✅ Update Delivery Tracking Status",
+            "✅ Stock Quantity Adjustments",
+            "❌ Edit Product Prices (Locked)",
+            "❌ Create Coupons (Locked)",
+            "❌ System Settings (Locked)"
+        ];
+    } else if (tier === "TIER4_SUPPORT") {
+        perms = [
+            "✅ View Orders & Customer Details",
+            "✅ Update Order Delivery Status",
+            "✅ Customer Query Assistance",
+            "❌ Stock & Price Editing (Locked)",
+            "❌ Admin Staff Management (Locked)",
+            "❌ Financial Analytics (Locked)"
+        ];
+    }
+
+    listEl.innerHTML = perms.map(p => `<div>${p}</div>`).join("");
+};
+
+window.openAddAdminStaffModal = function() {
+    const genId = "ADM" + Math.floor(100 + Math.random() * 900);
+    document.getElementById("staffEditId").value = "new";
+    document.getElementById("staffAdminId").value = genId;
+    document.getElementById("staffAdminId").readOnly = false;
+    document.getElementById("staffPassword").value = "admin123";
+    document.getElementById("staffName").value = "";
+    document.getElementById("staffMobile").value = "";
+    document.getElementById("staffEmail").value = "";
+    document.getElementById("staffTier").value = "TIER2_MANAGER";
+    document.getElementById("staffBranch").value = "Central Kitchen Unit";
+    document.getElementById("adminStaffModalTitle").innerText = "Appoint New Admin Staff & Authority Level";
+    
+    if (document.getElementById("staffSendEmail")) {
+        document.getElementById("staffSendEmail").checked = true;
+    }
+
+    window.updateAuthorityPermissionsPreview();
+
+    const modal = document.getElementById("adminStaffModal");
+    if (modal) modal.style.display = "flex";
+};
+
+window.closeAdminStaffModal = function() {
+    const modal = document.getElementById("adminStaffModal");
+    if (modal) modal.style.display = "none";
+};
+
+window.editAdminStaff = function(id) {
+    const target = adminStaffList.find(s => String(s.adminId || s.id).toLowerCase() === String(id).toLowerCase());
+    if (!target) return;
+
+    document.getElementById("staffEditId").value = target.adminId || target.id;
+    document.getElementById("staffAdminId").value = target.adminId || target.id;
+    document.getElementById("staffAdminId").readOnly = true; // Lock ID on edit
+    document.getElementById("staffPassword").value = target.password || "admin123";
+    document.getElementById("staffName").value = target.name || "";
+    document.getElementById("staffMobile").value = target.mobile || "";
+    document.getElementById("staffEmail").value = target.email || "";
+    document.getElementById("staffTier").value = target.tier || "TIER2_MANAGER";
+    document.getElementById("staffBranch").value = target.branch || "";
+    document.getElementById("adminStaffModalTitle").innerText = "Edit Admin Staff Authority & Credentials";
+
+    window.updateAuthorityPermissionsPreview();
+
+    const modal = document.getElementById("adminStaffModal");
+    if (modal) modal.style.display = "flex";
+};
+
+window.saveAdminStaffSubmit = function() {
+    const id = document.getElementById("staffEditId").value;
+    const adminId = document.getElementById("staffAdminId").value.trim();
+    const password = document.getElementById("staffPassword").value.trim();
+    const name = document.getElementById("staffName").value.trim();
+    const mobile = document.getElementById("staffMobile").value.trim();
+    const email = document.getElementById("staffEmail").value.trim();
+    const tier = document.getElementById("staffTier").value;
+    const branch = document.getElementById("staffBranch").value.trim();
+    const sendEmail = document.getElementById("staffSendEmail") ? document.getElementById("staffSendEmail").checked : true;
+
+    if (!adminId || !password || !name || !mobile) {
+        alert("Please enter User ID, Password, Staff Name, and Mobile Number.");
+        return;
+    }
+
+    let tierName = "Level 2: Operations Manager";
+    if (tier === "TIER1_MASTER") tierName = "Level 1: Master Owner / Director";
+    if (tier === "TIER3_LOGISTICS" || tier === "TIER3_STAFF") tierName = "Level 3: Inventory & Logistics Lead";
+    if (tier === "TIER4_SUPPORT") tierName = "Level 4: Customer Support & Order Operator";
+
+    const payload = {
+        id: adminId,
+        adminId: adminId,
+        password: password,
+        presetPassword: password,
+        name: name,
+        mobile: mobile,
+        email: email,
+        tier: tier,
+        tierName: tierName,
+        authorityLevel: tierName,
+        branch: branch,
+        sendAppointmentEmail: sendEmail,
+        status: "ACTIVE"
+    };
+
+    if (typeof showLoading === 'function') showLoading("Appointing Admin Staff & Sending Notification...");
+
+    server("saveAdminStaff", payload).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        closeAdminStaffModal();
+        loadAdminStaffDirectory();
+
+        let emailMsg = (sendEmail && email) 
+            ? `\n\n✉️ Appointment confirmation email sent to: ${email}`
+            : ``;
+
+        alert(`👑 Admin Staff Appointed Successfully!\n\nStaff Name: ${name}\nAuthority Level: ${tierName}\nUser ID: ${adminId}\nPassword: ${password}\nBranch: ${branch || 'Central Store'}${emailMsg}`);
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Save admin staff error:", err);
+        closeAdminStaffModal();
+        loadAdminStaffDirectory();
+    });
+};
+
+window.toggleAdminStaffStatus = function(id) {
+    if (typeof showLoading === 'function') showLoading("Updating staff account status...");
+
+    server("toggleAdminStaffStatus", { id: id, adminId: id }).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        loadAdminStaffDirectory();
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Toggle staff status error:", err);
+        loadAdminStaffDirectory();
+    });
+};
+
+window.deleteAdminStaff = function(id) {
+    if (!confirm(`Are you sure you want to delete admin staff account (${id})?`)) return;
+    if (typeof showLoading === 'function') showLoading("Deleting staff account...");
+
+    server("deleteAdminStaff", { id: id, adminId: id }).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        loadAdminStaffDirectory();
+    }).catch(err => {
+        if (typeof hideLoading === 'function') hideLoading();
+        console.error("Delete staff error:", err);
+        loadAdminStaffDirectory();
+    });
+};
+</script>

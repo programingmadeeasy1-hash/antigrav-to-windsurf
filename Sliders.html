@@ -1,0 +1,130 @@
+<div id="slidersAdminScreen" class="screen">
+  <!-- HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="showScreen('dashboardScreen')" class="icon-btn" style="color:white; font-size:20px; border:none; background:none; cursor:pointer;" title="Back to Dashboard">←</button>
+      <div>
+        <div class="brand-name" style="color: white; font-size: 16px; font-weight:800;">Hero Sliders & Banners</div>
+        <small style="color: rgba(255,255,255,0.85); font-size:11px;">Manage Home Page Banners & Promotional Links</small>
+      </div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button onclick="openAddSliderModal()" style="background: white; color: var(--primary-dark, #0b6e38); border: none; padding: 7px 16px; border-radius: 20px; font-weight: 800; font-size: 12px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.15); display:flex; align-items:center; gap:4px;">
+        <span>➕</span> Add Slider
+      </button>
+    </div>
+  </header>
+
+  <div style="padding: 15px; padding-bottom: 110px; max-width:850px; margin:0 auto;">
+    
+    <!-- INFO BANNER -->
+    <div style="background: #eaf7ee; border-left: 4px solid var(--primary, #0b6e38); border-radius: 14px; padding: 14px 16px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap:12px; box-shadow: 0 2px 8px rgba(0,0,0,0.03);">
+      <div>
+        <h4 style="color: var(--primary-dark, #0b6e38); font-size: 13px; font-weight: 800; margin-bottom: 2px;">🖼️ Interactive Home Page Carousel</h4>
+        <p style="color: #444; font-size: 11px; line-height: 1.4; margin:0;">Create, edit, toggle, or re-link hero banners. direct customers directly to store categories, pre-order batches, or bulk booking forms when clicked.</p>
+      </div>
+      <span style="font-size: 26px;">✨</span>
+    </div>
+
+    <!-- SLIDERS LIST GRID -->
+    <div id="adminSlidersList" style="display: flex; flex-direction: column; gap: 14px;">
+      <!-- Loaded dynamically via SlidersJS.html -->
+      <div style="text-align:center; padding:30px; color:#888; font-size:13px;">Loading sliders...</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ADD / EDIT SLIDER MODAL -->
+<div id="sliderModal" class="modal-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; padding:15px; box-sizing:border-box;">
+  <div style="background:white; border-radius:20px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; padding:22px; box-shadow:0 12px 35px rgba(0,0,0,0.3); box-sizing:border-box;">
+    
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid #eee; padding-bottom:10px;">
+      <h3 id="sliderModalTitle" style="color:var(--primary-dark, #0b6e38); font-size:16px; font-weight:800; margin:0;">Add New Hero Slider</h3>
+      <button onclick="closeSliderModal()" style="background:none; border:none; font-size:22px; color:#888; cursor:pointer; padding:0 5px;">✕</button>
+    </div>
+
+    <form id="sliderForm" onsubmit="event.preventDefault(); saveSliderAdmin();">
+      <input type="hidden" id="sliderFormId">
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Main Title / Headline*</label>
+        <input type="text" id="sliderTitle" placeholder="e.g. 100% Homemade Authentic Taste" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:13px; box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Badge Tag / Highlight (Optional)</label>
+        <input type="text" id="sliderBadge" placeholder="e.g. Seasonal Mango Special" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:13px; box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:12px;">
+        <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Subtitle / Description</label>
+        <input type="text" id="sliderSubtitle" placeholder="e.g. Made with Organic Spices & Sun-Cured Oil" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:13px; box-sizing:border-box;">
+      </div>
+
+      <div style="margin-bottom:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px; box-sizing:border-box;">
+        <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:6px;">📸 Banner Image (Upload File or Image URL)</label>
+        
+        <div style="display:flex; gap:8px; margin-bottom:8px;">
+          <input type="file" id="sliderFileInput" accept="image/*" style="display:none;" onchange="handleSliderFileUpload(this)">
+          <button type="button" onclick="document.getElementById('sliderFileInput').click()" style="flex:1; padding:9px 12px; background:#0b6e38; color:white; border:none; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span>📁</span> Upload Image
+          </button>
+          <input type="text" id="sliderImageUrl" placeholder="Or paste image URL https://..." style="flex:2; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px; box-sizing:border-box;" oninput="previewSliderImg(this.value)">
+        </div>
+
+        <!-- Banner Presets -->
+        <div style="margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <small style="font-size:10px; color:#3730a3; font-weight:800; display:flex; align-items:center; gap:4px;">
+              <span>🖼️</span> Quick Presets:
+            </small>
+            <button type="button" onclick="clearBannerPresetsHistory()" style="background:none; border:none; font-size:9px; color:#ef4444; font-weight:700; cursor:pointer;">Clear</button>
+          </div>
+          <div id="quickBannerPresetsContainer" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
+            <button type="button" onclick="previewSliderImg('https://images.unsplash.com/photo-1590005354167-6da97870c757?auto=format&fit=crop&w=800&q=80')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🥭 Mango Special</button>
+            <button type="button" onclick="previewSliderImg('https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🏺 Sun-Aged Barni</button>
+            <button type="button" onclick="previewSliderImg('https://images.unsplash.com/photo-1541544741938-0af808871cc0?auto=format&fit=crop&w=800&q=80')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🌶️ Red Stuffed Chilli</button>
+          </div>
+        </div>
+
+        <!-- Live Preview -->
+        <div id="sliderImgPreviewBox" style="width:100%; height:140px; border-radius:10px; background:#e2e8f0; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #cbd5e1;">
+          <span style="color:#64748b; font-size:11px; font-weight:700;">Image Preview</span>
+        </div>
+      </div>
+
+      <div style="margin-bottom:12px; display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+        <div>
+          <label style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Click Destination Action</label>
+          <select id="sliderActionType" onchange="updateActionValueOptions()" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px; font-weight:700; box-sizing:border-box;">
+            <option value="CATEGORY">Open Category</option>
+            <option value="PREORDER">Pre-Order Batch Modal</option>
+            <option value="BULK">Bulk Booking Form</option>
+            <option value="SCREEN">Navigate to Screen</option>
+            <option value="URL">External Link / URL</option>
+          </select>
+        </div>
+        <div>
+          <label id="sliderActionValueLabel" style="font-size:11px; font-weight:700; color:#555; display:block; margin-bottom:4px;">Target Value</label>
+          <div id="sliderActionValueContainer">
+            <input type="text" id="sliderActionValue" placeholder="e.g. Mango Pickles" style="width:100%; padding:10px 12px; border-radius:10px; border:1px solid #ccc; font-size:12px; box-sizing:border-box;">
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px; display:flex; gap:15px; align-items:center;">
+        <label style="font-size:12px; font-weight:700; color:#444; display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="sliderActive" checked style="width:18px; height:18px; accent-color:var(--primary, #0b6e38);">
+          Active on Home Carousel
+        </label>
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px;">
+        <button type="button" onclick="closeSliderModal()" style="flex:1; padding:12px; border-radius:10px; border:1px solid #ccc; background:#f5f5f5; font-weight:700; cursor:pointer;">Cancel</button>
+        <button type="submit" class="primaryButton" style="flex:2; padding:12px; font-size:13px; font-weight:800; cursor:pointer;">💾 Save Hero Slider</button>
+      </div>
+    </form>
+
+  </div>
+</div>

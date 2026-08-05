@@ -1,0 +1,335 @@
+<script>
+let allCategoriesList = [];
+let allCategoryProductsList = [];
+
+/**
+ * Loads categories and maps product counts
+ */
+window.loadCategories = function() {
+    console.log("Loading Categories Admin Space...");
+
+    // Fetch Products first or in parallel to map counts
+    server("getAllProducts").then(prods => {
+        allCategoryProductsList = prods || [];
+        
+        server("getAllCategories").then(cats => {
+            allCategoriesList = cats || [];
+            updateCategoryMetrics();
+            renderCategoriesGrid(allCategoriesList);
+        }).catch(err => {
+            console.error("Error loading categories:", err);
+            const container = document.getElementById("categoryList");
+            if (container) container.innerHTML = `<div style="text-align:center; color:red; padding:30px;">Error loading categories: ${err}</div>`;
+        });
+    }).catch(err => console.error("Error loading products for category mapping:", err));
+};
+window.loadAdminCategories = window.loadCategories;
+
+/**
+ * Update summary stats bar
+ */
+function updateCategoryMetrics() {
+    const totalEl = document.getElementById("catMetricTotal");
+    const activeEl = document.getElementById("catMetricActive");
+    const prodEl = document.getElementById("catMetricProducts");
+
+    if (totalEl) totalEl.innerText = allCategoriesList.length;
+    if (activeEl) activeEl.innerText = allCategoriesList.filter(c => c.status === "ACTIVE" || c.status !== "INACTIVE").length;
+    if (prodEl) prodEl.innerText = allCategoryProductsList.length;
+}
+
+/**
+ * Renders categories list in modern grid card layout
+ */
+function renderCategoriesGrid(categories) {
+    const container = document.getElementById("categoryList");
+    if (!container) return;
+
+    if (!categories || categories.length === 0) {
+        container.innerHTML = `<div style="text-align:center; padding:40px; background:white; border-radius:16px; color:#999; font-weight:700;">No categories found. Click "+ Add Category" above to create one.</div>`;
+        return;
+    }
+
+    const sortedCats = [...categories].sort((a, b) => (Number(a.priority) || 99) - (Number(b.priority) || 99));
+
+    let html = "";
+    sortedCats.forEach(c => {
+        const icon = c.icon || "📁";
+        const imgUrl = c.imageUrl || c.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+        const isActive = c.status !== "INACTIVE";
+        const statusBadge = isActive 
+            ? `<span style="font-size:10px; font-weight:800; background:#d1fae5; color:#065f46; padding:3px 8px; border-radius:10px;">ACTIVE</span>`
+            : `<span style="font-size:10px; font-weight:800; background:#f3f4f6; color:#6b7280; padding:3px 8px; border-radius:10px;">INACTIVE</span>`;
+
+        // Calculate mapped products count
+        const productCount = allCategoryProductsList.filter(p => p.category && p.category.toLowerCase() === c.name.toLowerCase()).length;
+
+        html += `
+        <div style="background:white; border-radius:16px; padding:16px; box-shadow:var(--shadow); border:1px solid #f0f0f0; transition:transform 0.2s;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <div style="position:relative; width:56px; height:56px; border-radius:12px; overflow:hidden; shrink:0; border:1px solid #bbf7d0; background:#f1f5f9;">
+                        <img src="${imgUrl}" alt="${c.name}" style="width:100%; height:100%; object-fit:cover;">
+                        <span style="position:absolute; bottom:2px; right:2px; font-size:12px; background:rgba(255,255,255,0.9); border-radius:50%; padding:1px 3px;">${icon}</span>
+                    </div>
+                    <div>
+                        <div style="font-size:15px; font-weight:800; color:#222;">${c.name}</div>
+                        <div style="font-size:11px; color:#666; margin-top:2px;">
+                            <span style="background:#eef2ff; color:#3730a3; padding:2px 6px; border-radius:6px; font-weight:700; font-size:10px; margin-right:6px;">#${c.priority || 1} Priority</span>
+                            📦 ${productCount} Product(s)
+                        </div>
+                    </div>
+                </div>
+                ${statusBadge}
+            </div>
+
+            ${c.description ? `<p style="font-size:12px; color:#555; background:#f9fafb; padding:8px 12px; border-radius:8px; margin-bottom:12px;">${c.description}</p>` : ''}
+
+            <!-- CARD ACTION BAR -->
+            <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f0f0f0; padding-top:10px; margin-top:6px;">
+                <button onclick="toggleCategoryStatus('${c.id}')" style="background:#f3f4f6; color:#444; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                    ${isActive ? '👁️ Set Inactive' : '✅ Set Active'}
+                </button>
+
+                <div style="display:flex; gap:6px;">
+                    <button onclick="openCategoryProductsScreen('${c.name}', '${imgUrl}')" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                        🛍️ View Products
+                    </button>
+                    <button onclick="editCategory('${c.id}')" style="background:#eaf7ee; color:var(--primary-dark); border:1px solid #bbf7d0; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                        ✏️ Edit
+                    </button>
+                    <button onclick="deleteCategoryAdmin('${c.id}')" style="background:#fef2f2; color:#dc2626; border:1px solid #fca5a5; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">
+                        🗑️ Delete
+                    </button>
+                </div>
+            </div>
+        </div>`;
+    });
+
+    container.innerHTML = html;
+}
+
+/**
+ * Filter categories by search
+ */
+function filterCategoriesList() {
+    const q = document.getElementById("catSearchInput")?.value.toLowerCase().trim();
+    if (!q) {
+        renderCategoriesGrid(allCategoriesList);
+        return;
+    }
+    const filtered = allCategoriesList.filter(c => 
+        (c.name && c.name.toLowerCase().includes(q)) ||
+        (c.description && c.description.toLowerCase().includes(q))
+    );
+    renderCategoriesGrid(filtered);
+}
+
+/**
+ * Opens category popup for creation
+ */
+window.openCategoryForm = function() {
+    document.getElementById("catModalTitle").innerText = "Create New Product Category";
+    document.getElementById("catId").value = "";
+    document.getElementById("catName").value = "";
+    document.getElementById("catImageUrl").value = "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+    document.getElementById("catIcon").value = "🥭";
+    document.getElementById("catPriority").value = (allCategoriesList.length + 1);
+    document.getElementById("catStatus").value = "ACTIVE";
+    document.getElementById("catDescription").value = "";
+
+    updateCategoryPreview();
+    document.getElementById("categoryFormModal").style.display = "flex";
+};
+
+/**
+ * Populate category popup for editing
+ */
+window.editCategory = function(id) {
+    const category = allCategoriesList.find(c => String(c.id) === String(id));
+    if (!category) return;
+
+    document.getElementById("catModalTitle").innerText = "Edit Product Category";
+    document.getElementById("catId").value = category.id;
+    document.getElementById("catName").value = category.name || "";
+    document.getElementById("catImageUrl").value = category.imageUrl || category.image || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+    document.getElementById("catIcon").value = category.icon || "📁";
+    document.getElementById("catPriority").value = category.priority || 1;
+    document.getElementById("catStatus").value = category.status || "ACTIVE";
+    document.getElementById("catDescription").value = category.description || "";
+
+    updateCategoryPreview();
+    document.getElementById("categoryFormModal").style.display = "flex";
+};
+
+window.closeCategoryForm = function() {
+    document.getElementById("categoryFormModal").style.display = "none";
+};
+
+window.handleCatImageUpload = function(input) {
+    if (input.files && input.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById("catImageUrl").value = e.target.result;
+            updateCategoryPreview();
+        };
+        reader.readAsDataURL(input.files[0]);
+    }
+};
+
+window.selectCatImgPreset = function(url, emoji) {
+    document.getElementById("catImageUrl").value = url;
+    if (emoji) document.getElementById("catIcon").value = emoji;
+    updateCategoryPreview();
+};
+
+window.selectCatEmoji = function(emoji) {
+    document.getElementById("catIcon").value = emoji;
+    updateCategoryPreview();
+};
+
+window.updateCategoryPreview = function() {
+    const name = document.getElementById("catName")?.value.trim() || "Mango Pickles";
+    const imgUrl = document.getElementById("catImageUrl")?.value.trim() || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+    const icon = document.getElementById("catIcon")?.value.trim() || "🥭";
+    const status = document.getElementById("catStatus")?.value || "ACTIVE";
+    const desc = document.getElementById("catDescription")?.value.trim() || "Homemade traditional raw mango pickles";
+
+    const prevImg = document.getElementById("prevCatImg");
+    const prevIconBadge = document.getElementById("prevCatIconBadge");
+    const prevName = document.getElementById("prevCatName");
+    const prevBadge = document.getElementById("prevCatBadge");
+    const prevDesc = document.getElementById("prevCatDesc");
+
+    if (prevImg) prevImg.src = imgUrl;
+    if (prevIconBadge) prevIconBadge.innerText = icon;
+    if (prevName) prevName.innerText = name;
+    if (prevDesc) prevDesc.innerText = desc;
+    if (prevBadge) {
+        if (status === "ACTIVE") {
+            prevBadge.innerText = "ACTIVE";
+            prevBadge.style.background = "#d1fae5";
+            prevBadge.style.color = "#065f46";
+        } else {
+            prevBadge.innerText = "INACTIVE";
+            prevBadge.style.background = "#f3f4f6";
+            prevBadge.style.color = "#6b7280";
+        }
+    }
+};
+
+/**
+ * Saves or updates category in backend
+ */
+window.saveCategory = function() {
+    console.log("saveCategory triggered...");
+    const idEl = document.getElementById("catId");
+    const nameEl = document.getElementById("catName");
+    const imgEl = document.getElementById("catImageUrl");
+    const iconEl = document.getElementById("catIcon");
+    const priorityEl = document.getElementById("catPriority");
+    const statusEl = document.getElementById("catStatus");
+    const descEl = document.getElementById("catDescription");
+
+    const existingId = idEl ? idEl.value.trim() : "";
+    const name = nameEl ? nameEl.value.trim() : "";
+    const imageUrl = (imgEl ? imgEl.value.trim() : "") || "https://images.unsplash.com/photo-1589927986089-35812388d1f4?w=500";
+    const icon = (iconEl ? iconEl.value.trim() : "") || "📁";
+    const priority = parseInt(priorityEl ? priorityEl.value : "1") || 1;
+    const status = statusEl ? statusEl.value : "ACTIVE";
+    const description = descEl ? descEl.value.trim() : "";
+
+    if (!name) {
+        alert("Please enter a category name.");
+        if (nameEl) nameEl.focus();
+        return;
+    }
+
+    const catId = existingId || ("CAT" + Math.floor(100 + Math.random() * 900));
+    const payload = { id: catId, name, imageUrl, icon, priority, status, description };
+
+    if (typeof showLoading === 'function') showLoading("Saving category...");
+
+    // 1. Instant local persistence & UI update
+    if (!Array.isArray(allCategoriesList)) allCategoriesList = [];
+    const existingIdx = allCategoriesList.findIndex(c => String(c.id) === String(catId));
+    if (existingIdx >= 0) {
+        allCategoriesList[existingIdx] = { ...allCategoriesList[existingIdx], ...payload };
+    } else {
+        allCategoriesList.push(payload);
+    }
+
+    try {
+        localStorage.setItem("app_categories", JSON.stringify(allCategoriesList));
+    } catch(e) {
+        console.warn("localStorage save error:", e);
+    }
+
+    updateCategoryMetrics();
+    renderCategoriesGrid(allCategoriesList);
+
+    // 2. Sync server backend
+    server("saveCategory", payload).then(res => {
+        if (typeof hideLoading === 'function') hideLoading();
+        closeCategoryForm();
+        alert("✅ Category saved successfully!");
+        loadCategories(); // Refresh category management grid
+
+        // Instantly trigger category sync across all product & batch dropdowns!
+        if (typeof populateProductCategoriesDropdown === 'function') populateProductCategoriesDropdown();
+        if (typeof populateCategoryDropdownsSpecial === 'function') populateCategoryDropdownsSpecial();
+        if (typeof populateBulkProductsDropdown === 'function') populateBulkProductsDropdown();
+    }).catch(err => {
+        // Fallback to createCategory
+        server("createCategory", payload).then(res => {
+            if (typeof hideLoading === 'function') hideLoading();
+            closeCategoryForm();
+            alert("✅ Category saved successfully!");
+            loadCategories();
+
+            if (typeof populateProductCategoriesDropdown === 'function') populateProductCategoriesDropdown();
+            if (typeof populateCategoryDropdownsSpecial === 'function') populateCategoryDropdownsSpecial();
+            if (typeof populateBulkProductsDropdown === 'function') populateBulkProductsDropdown();
+        }).catch(err2 => {
+            if (typeof hideLoading === 'function') hideLoading();
+            closeCategoryForm();
+            alert("✅ Category saved locally!");
+            loadCategories();
+
+            if (typeof populateProductCategoriesDropdown === 'function') populateProductCategoriesDropdown();
+            if (typeof populateCategoryDropdownsSpecial === 'function') populateCategoryDropdownsSpecial();
+            if (typeof populateBulkProductsDropdown === 'function') populateBulkProductsDropdown();
+        });
+    });
+};
+
+/**
+ * Toggles category active status
+ */
+window.toggleCategoryStatus = function(id) {
+    const category = allCategoriesList.find(c => String(c.id) === String(id));
+    if (!category) return;
+
+    category.status = (category.status === "INACTIVE") ? "ACTIVE" : "INACTIVE";
+
+    server("saveCategory", category).then(res => {
+        loadCategories();
+    });
+};
+
+/**
+ * Delete category
+ */
+window.deleteCategoryAdmin = function(id) {
+    if (!confirm("Are you sure you want to delete this category?")) return;
+
+    showLoading();
+    server("deleteCategory", { id: id }).then(res => {
+        hideLoading();
+        loadCategories();
+    }).catch(err => {
+        hideLoading();
+        alert("Error deleting category.");
+    });
+};
+</script>

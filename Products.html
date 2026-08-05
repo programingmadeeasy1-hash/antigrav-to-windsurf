@@ -1,0 +1,354 @@
+<div id="productsAdminScreen" class="screen">
+  <!-- PREMIUM ADMIN HEADER -->
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button onclick="showScreen('dashboardScreen')" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div class="brand-name" style="color: white;">Manage Products</div>
+    </div>
+    <div style="display:flex; gap:10px;">
+      <button onclick="openProductModal()" class="icon-btn" style="color:white; font-size:16px;" title="Add Product">➕</button>
+      <button onclick="loadAdminProductsLogic()" class="icon-btn" style="color:white; font-size:16px;" title="Refresh">🔄</button>
+    </div>
+  </header>
+
+  <div style="padding: 15px; padding-bottom:100px;">
+    
+    <!-- GOOGLE SHEET & FILE UPLOAD CONTENT MANAGEMENT HUB -->
+    <div style="background: linear-gradient(135deg, #0b6e38 0%, #15803d 100%); border-radius:18px; padding:16px; margin-bottom:15px; color:white; box-shadow:0 8px 20px rgba(11,110,56,0.25);">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+        <div>
+          <span style="background:rgba(255,255,255,0.2); padding:3px 8px; border-radius:12px; font-size:10px; font-weight:800; text-transform:uppercase; letter-spacing:0.5px;">
+            📊 Google Sheet Backend Sync
+          </span>
+          <h3 style="margin:6px 0 2px 0; font-size:15px; font-weight:900;">Dynamic Product Content & File Manager</h3>
+          <p style="margin:0; font-size:11px; opacity:0.9;">Replace hardcoded product images and descriptions with dynamic Google Sheet data or uploaded files.</p>
+        </div>
+        <span id="sheetSyncBadge" style="background:#fef08a; color:#854d0e; font-size:10px; font-weight:900; padding:4px 10px; border-radius:12px; border:1px solid #fde047;">
+          🟢 Dynamic Active
+        </span>
+      </div>
+
+      <!-- HUB ACTION BUTTONS -->
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+        <button type="button" onclick="openSheetUploadModal()" style="background:white; color:#0b6e38; border:none; padding:10px 12px; border-radius:12px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 2px 6px rgba(0,0,0,0.1);">
+          <span>📁</span> Upload CSV / File
+        </button>
+        <button type="button" onclick="openBulkContentReplacerModal()" style="background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.4); padding:10px 12px; border-radius:12px; font-size:12px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <span>🖼️</span> Bulk Edit Images & Copy
+        </button>
+      </div>
+      <button type="button" onclick="openAdminReviewsModal()" style="margin-top:8px; width:100%; background:#fef08a; color:#854d0e; border:1px solid #fde047; padding:10px 12px; border-radius:12px; font-size:12px; font-weight:900; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px; box-shadow:0 2px 6px rgba(0,0,0,0.08);">
+        <span>💬</span> Manage Customer Reviews & Moderation
+      </button>
+    </div>
+
+    <!-- SEARCH BAR -->
+    <div style="margin-bottom:15px;">
+      <input type="text" id="adminProductSearch" placeholder="🔍 Search product name or category..." onkeyup="filterAdminProducts()" 
+             style="width:100%; padding:12px 15px; border-radius:12px; border:1px solid #ddd; font-size:14px; background:white; box-shadow:var(--shadow);">
+    </div>
+
+    <!-- PRODUCTS LIST -->
+    <div id="adminProductsList" style="display:flex; flex-direction:column; gap:12px;">
+      <p style="text-align:center; padding:40px; color:#999;">Loading products catalog...</p>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT PRODUCT MODAL -->
+  <div id="productModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center;">
+    <div style="background:white; width:90%; max-width:450px; max-height:85vh; border-radius:20px; padding:20px; overflow-y:auto; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; border-bottom:1px solid #eee; padding-bottom:10px;">
+        <h3 id="productModalTitle" style="color:var(--primary); font-size:16px;">Add New Pickle Product</h3>
+        <button onclick="closeProductModal()" style="background:none; border:none; font-size:20px; cursor:pointer;">❌</button>
+      </div>
+
+      <form id="productForm" onsubmit="event.preventDefault(); saveProductAdmin();">
+        <input type="hidden" id="adminProdId">
+
+        <div style="margin-bottom:10px;">
+          <label style="font-size:11px; font-weight:700; color:#555;">Product Name*</label>
+          <input type="text" id="adminProdName" required placeholder="e.g. Mango Pickle (Amba)" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+        </div>
+
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <div style="flex:1;">
+            <label style="font-size:11px; font-weight:700; color:#555;">Category*</label>
+            <select id="adminProdCategory" required style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+              <option value="Mango Pickles">Mango Pickles</option>
+              <option value="Lemon Pickles">Lemon Pickles</option>
+              <option value="Chilli Pickles">Chilli Pickles</option>
+              <option value="Special Pickles">Special Pickles</option>
+            </select>
+          </div>
+          <div style="flex:1;">
+             <label style="font-size:11px; font-weight:700; color:#555;">Net Weight*</label>
+             <input type="text" id="adminProdWeight" required placeholder="e.g. 500g / 1kg" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-bottom:10px;">
+          <div style="flex:1;">
+            <label style="font-size:11px; font-weight:700; color:#555;">MRP (₹)*</label>
+            <input type="number" id="adminProdMRP" required placeholder="350" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+          </div>
+          <div style="flex:1;">
+             <label style="font-size:11px; font-weight:700; color:#555;">Offer Price (₹)*</label>
+             <input type="number" id="adminProdOfferPrice" required placeholder="299" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+          </div>
+          <div style="flex:1;">
+             <label style="font-size:11px; font-weight:700; color:#555;">Stock Quantity*</label>
+             <input type="number" id="adminProdStock" required min="0" placeholder="e.g. 50" style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;">
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:12px;">
+           <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:6px;">📸 Product Image (Upload File, URL, or Choose Preset)</label>
+
+           <div style="display:flex; gap:8px; margin-bottom:8px;">
+              <input type="file" id="adminProdFileInput" accept="image/*" style="display:none;" onchange="handleProductFileUpload(this)">
+              <button type="button" onclick="document.getElementById('adminProdFileInput').click()" style="flex:1; padding:8px 12px; background:#0b6e38; color:white; border:none; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:6px;">
+                 <span>📁</span> Upload Image File
+              </button>
+              <input type="text" id="adminProdImage" placeholder="Or paste Image URL https://..." oninput="previewProductImage(this.value)" style="flex:2; padding:8px; border-radius:8px; border:1px solid #cbd5e1; font-size:11px;">
+           </div>
+
+           <!-- DIMENSION & FIT CONTROLS -->
+           <div style="background:white; border:1px solid #cbd5e1; border-radius:10px; padding:10px; margin-bottom:8px;">
+             <div style="font-size:10px; font-weight:800; color:#475569; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+               <span>📐 Image Dimensions & Fitting Controls</span>
+               <span id="prodDimensionsTag" style="color:#0b6e38; font-weight:700;">120px • Cover</span>
+             </div>
+
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:6px;">
+               <div>
+                 <label style="font-size:9px; font-weight:700; color:#64748b;">Fit Mode:</label>
+                 <select id="prodFitMode" onchange="updateProductImageFit()" style="width:100%; padding:4px 6px; border-radius:6px; border:1px solid #cbd5e1; font-size:10px; font-weight:700;">
+                   <option value="cover">Cover (Fill & Crop Extra)</option>
+                   <option value="contain">Contain (Fit Whole Image)</option>
+                   <option value="fill">Fill (Scale to Box)</option>
+                 </select>
+               </div>
+               <div>
+                 <label style="font-size:9px; font-weight:700; color:#64748b;">Frame Height: <span id="prodHeightVal">120px</span></label>
+                 <input type="range" id="prodHeightRange" min="80" max="300" value="120" oninput="updateProductImageFit()" style="width:100%; accent-color:#0b6e38;">
+               </div>
+             </div>
+
+             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+               <div style="display:flex; gap:4px; align-items:center;">
+                 <span style="font-size:9px; font-weight:700; color:#64748b;">Ratios:</span>
+                 <button type="button" onclick="setProductAspectRatio('1:1')" style="padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; background:#f1f5f9; font-size:9px; font-weight:700; cursor:pointer;">1:1 Square</button>
+                 <button type="button" onclick="setProductAspectRatio('4:3')" style="padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; background:#f1f5f9; font-size:9px; font-weight:700; cursor:pointer;">4:3 Classic</button>
+                 <button type="button" onclick="setProductAspectRatio('16:9')" style="padding:2px 6px; border-radius:4px; border:1px solid #cbd5e1; background:#f1f5f9; font-size:9px; font-weight:700; cursor:pointer;">16:9 Banner</button>
+               </div>
+               <button type="button" onclick="applyCanvasResizeProduct()" style="padding:4px 8px; background:#3730a3; color:white; border:none; border-radius:6px; font-size:9px; font-weight:800; cursor:pointer;" title="Resample & crop uploaded image directly into canvas dimensions">
+                 ✂️ Crop & Resize Image
+               </button>
+             </div>
+           </div>
+
+           <!-- QUICK PICKLE PRODUCT PRESETS -->
+           <div style="margin-bottom:8px;">
+              <small style="font-size:10px; color:#64748b; font-weight:700; display:block; margin-bottom:4px;">Quick Pickle Presets:</small>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                 <button type="button" onclick="selectProductPreset('mango')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🥭 Sun-Dried Mango</button>
+                 <button type="button" onclick="selectProductPreset('lemon')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🍋 Khatta Meetha Lemon</button>
+                 <button type="button" onclick="selectProductPreset('chilli')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🌶️ Bharwa Red Chilli</button>
+                 <button type="button" onclick="selectProductPreset('garlic')" style="padding:4px 8px; border-radius:6px; border:1px solid #cbd5e1; background:white; font-size:10px; font-weight:700; cursor:pointer;">🧄 Lahsun Special</button>
+              </div>
+           </div>
+
+           <!-- LIVE PREVIEW -->
+           <div id="adminProdImgPreviewBox" style="width:100%; height:120px; border-radius:10px; background:#e2e8f0; overflow:hidden; display:flex; align-items:center; justify-content:center; border:1px solid #cbd5e1;">
+              <span style="color:#64748b; font-size:11px; font-weight:700;">Image Preview</span>
+           </div>
+        </div>
+
+        <div style="margin-bottom:15px;">
+           <label style="font-size:11px; font-weight:700; color:#555;">Description</label>
+           <textarea id="adminProdDesc" rows="3" placeholder="Traditional homemade taste..." style="width:100%; padding:10px; border-radius:8px; border:1px solid #ccc; font-size:13px;"></textarea>
+        </div>
+
+        <div style="margin-bottom:15px; background:#f8fafc; border:1px solid #cbd5e1; border-radius:14px; padding:12px; box-shadow:0 2px 6px rgba(0,0,0,0.02);">
+           <div style="font-size:11px; font-weight:800; color:#334155; text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px; border-bottom:1px solid #e2e8f0; padding-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+              <span>🏷️ PRODUCT BADGES & VISIBILITY SECTIONS</span>
+              <span style="font-size:10px; color:#64748b; font-weight:600;">Tick sections to list item</span>
+           </div>
+
+           <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px; font-size:11px;">
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdFeatured" style="accent-color:#0b6e38; width:16px; height:16px;">
+                 ★ Featured
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdBestSeller" style="accent-color:#d97706; width:16px; height:16px;">
+                 🔥 Best Seller
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdNewArrival" style="accent-color:#2563eb; width:16px; height:16px;">
+                 ✨ New Arrival
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdPreOrder" style="accent-color:#0284c7; width:16px; height:16px;">
+                 🏺 Solar Pre-Order
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdBulkAvailable" style="accent-color:#854d0e; width:16px; height:16px;">
+                 📦 Wholesale Bulk
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdActiveStatus" checked style="accent-color:#16a34a; width:16px; height:16px;">
+                 🟢 Active Status
+              </label>
+
+              <!-- PROMOTIONAL SECTIONS LISTING TICKS -->
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdUnder50Off" style="accent-color:#dc2626; width:16px; height:16px;">
+                 ⚡ Under ₹50 Off
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s;">
+                 <input type="checkbox" id="adminProdOff50Percent" style="accent-color:#7c3aed; width:16px; height:16px;">
+                 🎉 50% Off Special
+              </label>
+
+              <label style="display:flex; align-items:center; gap:6px; color:#1e293b; font-weight:700; cursor:pointer; background:white; padding:7px 10px; border-radius:8px; border:1px solid #e2e8f0; transition:all 0.15s; grid-column: span 2;">
+                 <input type="checkbox" id="adminProdOff20Percent" style="accent-color:#059669; width:16px; height:16px;">
+                 💥 20% Off Special
+              </label>
+           </div>
+        </div>
+
+        <div style="margin-bottom:15px; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:10px;">
+          <label style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:700; color:#0b6e38; cursor:pointer;">
+            <input type="checkbox" id="adminProdCreateBatch" style="width:16px; height:16px; accent-color:#0b6e38;">
+            ⚡ Enable Pre-Order Batch & Auto-Generate Sequential Batch Number
+          </label>
+        </div>
+
+        <button type="submit" class="primaryButton" style="width:100%; padding:12px; font-size:14px;">Save Product</button>
+      </form>
+
+    </div>
+  </div>
+
+  <!-- MODAL 1: FILE DRAG & DROP UPLOAD / GOOGLE SHEET CSV IMPORT -->
+  <div id="sheetUploadModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(3px);">
+    <div style="background:white; width:92%; max-width:550px; max-height:88vh; border-radius:24px; padding:22px; overflow-y:auto; box-shadow:0 15px 40px rgba(0,0,0,0.3); border:1px solid #e2e8f0;">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:20px;">📁</span>
+          <div>
+            <h3 style="color:#0b6e38; font-size:16px; margin:0; font-weight:900;">Upload Google Sheet File or Images</h3>
+            <span style="font-size:11px; color:#64748b;">Import CSV, JSON or bulk product image files</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeSheetUploadModal()" style="background:#f1f5f9; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer;">❌</button>
+      </div>
+
+      <!-- DRAG AND DROP ZONE -->
+      <div id="adminFileDropZone" 
+           onondragover="handleAdminDragOver(event)" 
+           ondragleave="handleAdminDragLeave(event)" 
+           ondrop="handleAdminFileDrop(event)"
+           onclick="document.getElementById('adminSheetFileInput').click()"
+           style="border:2.5px dashed #0b6e38; background:#f0fdf4; border-radius:18px; padding:28px 16px; text-align:center; cursor:pointer; margin-bottom:16px; transition:all 0.2s;">
+        
+        <input type="file" id="adminSheetFileInput" accept=".csv, .json, image/*" multiple style="display:none;" onchange="handleAdminFileSelect(this)">
+        <div style="font-size:36px; margin-bottom:8px;">📥</div>
+        <h4 style="margin:0 0 4px 0; font-size:14px; font-weight:800; color:#166534;">Drag & Drop Google Sheet CSV, JSON, or Image Files</h4>
+        <p style="margin:0 0 10px 0; font-size:11px; color:#15803d; font-weight:600;">Or click here to browse files on your computer</p>
+        <span style="font-size:10px; font-weight:800; background:white; color:#0b6e38; padding:4px 10px; border-radius:10px; border:1px solid #bbf7d0;">
+           Supports: .CSV (Google Sheets export), .JSON, .JPG, .PNG, .WEBP
+        </span>
+      </div>
+
+      <!-- IMPORT PREVIEW CONTAINER -->
+      <div id="sheetImportPreviewContainer" style="display:none; margin-bottom:16px; background:#f8fafc; padding:14px; border-radius:14px; border:1px solid #cbd5e1;">
+        <h4 style="margin:0 0 8px 0; font-size:13px; font-weight:800; color:#0f172a; display:flex; justify-content:space-between; align-items:center;">
+           <span>📋 Imported Sheet Rows Preview</span>
+           <span id="importRowsCountBadge" style="font-size:10px; background:#e0e7ff; color:#3730a3; padding:2px 8px; border-radius:8px;">0 Rows</span>
+        </h4>
+        <div id="importPreviewTable" style="max-height:180px; overflow-y:auto; font-size:11px; border:1px solid #e2e8f0; border-radius:8px; background:white; padding:8px;">
+           <!-- Dynamic parsed rows -->
+        </div>
+      </div>
+
+      <!-- IMAGE UPLOADS PREVIEW CONTAINER -->
+      <div id="imageUploadsPreviewContainer" style="display:none; margin-bottom:16px; background:#fff1f2; padding:14px; border-radius:14px; border:1px solid #fecdd3;">
+         <h4 style="margin:0 0 8px 0; font-size:13px; font-weight:800; color:#be123c;">🖼️ Uploaded Product Image Files</h4>
+         <div id="imageFilesThumbGrid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(90px, 1fr)); gap:10px;">
+            <!-- Dynamic uploaded images -->
+         </div>
+      </div>
+
+      <!-- SAMPLE GOOGLE SHEET TEMPLATE DOWNLOAD & GUIDE -->
+      <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:14px; padding:12px; margin-bottom:16px;">
+         <div style="font-size:11px; font-weight:800; color:#0369a1; margin-bottom:4px;">💡 Google Sheet Headers Guide</div>
+         <p style="font-size:10px; color:#0284c7; margin:0 0 6px 0;">Headers supported: <code style="background:white; padding:1px 4px; border-radius:4px;">ProductID</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">Name</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">Category</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">MRP</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">OfferPrice</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">Image1</code>, <code style="background:white; padding:1px 4px; border-radius:4px;">Description</code></p>
+         <button type="button" onclick="downloadSampleProductCSV()" style="background:#0284c7; color:white; border:none; padding:5px 10px; border-radius:8px; font-size:10px; font-weight:800; cursor:pointer;">
+            ⬇️ Download Sample CSV Template
+         </button>
+      </div>
+
+      <!-- APPLY & IMPORT ACTION BUTTONS -->
+      <div style="display:flex; gap:10px;">
+         <button type="button" id="btnApplySheetImport" onclick="applyGoogleSheetImport()" disabled style="flex:2; background:#cbd5e1; color:#64748b; border:none; padding:12px; border-radius:12px; font-size:13px; font-weight:800; cursor:not-allowed;">
+            🚀 Replace Hardcoded Products with Sheet Data
+         </button>
+         <button type="button" onclick="closeSheetUploadModal()" style="flex:1; background:#f1f5f9; color:#475569; border:none; padding:12px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer;">
+            Cancel
+         </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- MODAL 2: BULK PRODUCT IMAGE & DESCRIPTION REPLACER -->
+  <div id="bulkContentReplacerModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.6); z-index:9999; align-items:center; justify-content:center; backdrop-filter:blur(3px);">
+    <div style="background:white; width:94%; max-width:650px; max-height:90vh; border-radius:24px; padding:22px; overflow-y:auto; box-shadow:0 15px 40px rgba(0,0,0,0.3); border:1px solid #e2e8f0;">
+      
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:22px;">🖼️</span>
+          <div>
+            <h3 style="color:#0b6e38; font-size:16px; margin:0; font-weight:900;">Bulk Replace Images & Descriptions</h3>
+            <span style="font-size:11px; color:#64748b;">Directly edit product images and descriptions for all catalog items</span>
+          </div>
+        </div>
+        <button type="button" onclick="closeBulkContentReplacerModal()" style="background:#f1f5f9; border:none; border-radius:50%; width:32px; height:32px; font-size:16px; cursor:pointer;">❌</button>
+      </div>
+
+      <div style="margin-bottom:14px; background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 14px; border-radius:12px; font-size:11px; color:#166534; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+         <span>💡 Upload custom photo files or paste new Google Drive / Unsplash URLs to replace hardcoded placeholders.</span>
+         <button type="button" onclick="fetchAndAutoFillUnsplashPickleImages()" style="background:#0b6e38; color:white; border:none; padding:4px 8px; border-radius:6px; font-size:10px; font-weight:800; cursor:pointer;">
+            ✨ Auto-Enhance HD Photos
+         </button>
+      </div>
+
+      <!-- BULK PRODUCT CONTENT LIST -->
+      <div id="bulkProductContentCardsList" style="display:flex; flex-direction:column; gap:12px; margin-bottom:18px;">
+         <!-- Dynamic product content editor cards -->
+      </div>
+
+      <div style="display:flex; gap:10px;">
+         <button type="button" onclick="saveBulkProductContentChanges()" style="flex:2; background:#0b6e38; color:white; border:none; padding:14px; border-radius:12px; font-size:13px; font-weight:900; cursor:pointer; box-shadow:0 4px 12px rgba(11,110,56,0.25);">
+            💾 Save All Images & Descriptions to Backend
+         </button>
+         <button type="button" onclick="closeBulkContentReplacerModal()" style="flex:1; background:#f1f5f9; color:#475569; border:none; padding:14px; border-radius:12px; font-size:13px; font-weight:700; cursor:pointer;">
+            Close
+         </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+

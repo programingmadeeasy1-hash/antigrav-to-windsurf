@@ -1,0 +1,295 @@
+<div id="productScreen" class="screen">
+  <header class="topBar">
+    <button class="back-btn" onclick="goBackFromProductDetail()" style="color:white; font-size:14px; font-weight:800; background:rgba(255,255,255,0.2); border:none; padding:6px 14px; border-radius:14px; cursor:pointer;">← Back</button>
+    <h2 class="brand-name" style="color:white; font-size:16px;">Pickle Product Details</h2>
+    <div style="display:flex; gap:6px; align-items:center;">
+       <button onclick="window.toggleWishlistDrawer()" class="header-icon-circle-btn" style="background:rgba(255,255,255,0.2); border:none; color:white; position:relative;" title="Saved Wishlist">💖</button>
+       <button onclick="showCart()" class="header-icon-circle-btn" style="background:rgba(255,255,255,0.2); border:none; color:white; position:relative;" title="Cart">🛒</button>
+    </div>
+  </header>
+
+  <div style="padding-bottom:110px; max-width:600px; margin:0 auto;">
+    
+    <!-- BIG MAIN PRODUCT IMAGE CONTAINER -->
+    <div style="width:100%; height:300px; background:#f8fafc; position:relative; overflow:hidden; border-bottom:1px solid #e2e8f0;">
+       <img id="detailImg" src="" style="width:100%; height:100%; object-fit:contain; padding:10px; transition:all 0.3s ease;">
+       
+       <!-- BADGES OVERLAY -->
+       <span id="detailBadgeTag" style="position:absolute; top:12px; left:12px; background:#0b6e38; color:white; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px; box-shadow:0 2px 8px rgba(0,0,0,0.15);">
+          🌿 100% Pure & Homemade
+       </span>
+
+       <span id="detailPreOrderTag" style="display:none; position:absolute; top:12px; right:12px; background:#0284c7; color:white; font-size:10px; font-weight:800; padding:4px 10px; border-radius:12px;">
+          ⏳ Sun-Aged Pre-Order Batch
+       </span>
+
+       <!-- LIKE / HEART FLOATING BUTTON -->
+       <button id="detailLikeBtn" onclick="toggleCurrentProductLike()" style="position:absolute; bottom:12px; right:12px; background:white; border:1px solid #e2e8f0; border-radius:30px; padding:6px 14px; font-size:12px; font-weight:800; color:#e11d48; display:flex; align-items:center; gap:6px; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.1); transition:all 0.2s;">
+          <span id="detailHeartIcon">❤️</span> <span id="detailLikesCount">48</span>
+       </button>
+    </div>
+
+    <!-- MULTI-IMAGE THUMBNAILS GALLERY ROW -->
+    <div style="background:white; padding:10px 15px; border-bottom:1px solid #f1f5f9;">
+       <div style="font-size:10px; font-weight:800; color:#64748b; margin-bottom:6px; text-transform:uppercase;">PRODUCT GALLERY / ANGLES:</div>
+       <div id="detailThumbnailsGallery" style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;">
+          <!-- Rendered dynamically by ProductJS.html -->
+       </div>
+    </div>
+
+    <div style="padding:18px; background:white; border-radius:24px 24px 0 0; box-shadow:0 -5px 20px rgba(0,0,0,0.04);">
+       
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <div id="detailCategory" style="font-size:11px; font-weight:900; color:#0b6e38; text-transform:uppercase; letter-spacing:0.5px;">CATEGORY</div>
+          <div id="detailRatingBadgeHeader" onclick="scrollToReviewsSection()" style="font-size:11px; color:#f59e0b; font-weight:800; display:flex; align-items:center; gap:4px; cursor:pointer; background:#fffbeb; padding:4px 8px; border-radius:8px; border:1px solid #fde68a;">
+             <span>⭐</span> <span id="detailAvgRatingText">4.9</span>
+             <span id="detailReviewCountText" style="color:#64748b; font-weight:600;">(12 Reviews)</span>
+          </div>
+       </div>
+
+       <h1 id="detailTitle" style="font-size:19px; font-weight:900; color:#0f172a; margin:0 0 10px 0; line-height:1.3;">Pickle Name</h1>
+       
+       <!-- PRICE & DISCOUNT ROW -->
+       <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:12px; background:#f8fafc; padding:10px 14px; border-radius:14px; border:1px solid #f1f5f9;">
+          <span id="detailPrice" style="font-size:26px; font-weight:900; color:#0b6e38;">₹0</span>
+          <span id="detailMRP" style="font-size:15px; color:#94a3b8; text-decoration:line-through;">₹0</span>
+          <span id="detailDiscountBadge" style="font-size:11px; font-weight:800; background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:8px; margin-left:auto;">
+             Save Discount
+          </span>
+       </div>
+
+       <!-- SAVE TO WISHLIST ACTION BUTTON -->
+       <button id="detailWishlistBtn" onclick="toggleCurrentProductWishlist()" style="width:100%; padding:10px 14px; margin-bottom:16px; background:#fff1f2; border:1px solid #fecdd3; border-radius:14px; color:#be123c; font-size:13px; font-weight:800; display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer; transition:all 0.2s; box-shadow:0 2px 8px rgba(225,29,72,0.06);">
+          <span id="detailWishlistIcon">💖</span> <span id="detailWishlistLabel">Add to Saved Wishlist</span>
+       </button>
+
+       <!-- WEIGHT SELECTION VARIANTS -->
+       <div style="margin-bottom:16px;">
+          <label style="font-size:12px; font-weight:800; color:#334155; display:block; margin-bottom:8px;">
+             Select Packaging Pack Size:
+          </label>
+          <div id="detailVariantsRow" style="display:flex; gap:8px; flex-wrap:wrap;"></div>
+       </div>
+
+       <!-- QUANTITY SELECTOR COUNTER -->
+       <div style="margin-bottom:16px; display:flex; align-items:center; justify-content:space-between; background:#f8fafc; padding:10px 14px; border-radius:14px; border:1px solid #e2e8f0;">
+          <span style="font-size:12px; font-weight:800; color:#334155;">Quantity Jars:</span>
+          <div style="display:flex; align-items:center; gap:12px; background:white; padding:4px 8px; border-radius:10px; border:1px solid #cbd5e1;">
+             <button onclick="changeDetailQty(-1)" style="width:28px; height:28px; border:none; background:#f1f5f9; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer; color:#0f172a;">-</button>
+             <span id="detailQtyDisplay" style="font-size:14px; font-weight:900; min-width:20px; text-align:center; color:#0f172a;">1</span>
+             <button onclick="changeDetailQty(1)" style="width:28px; height:28px; border:none; background:#0b6e38; color:white; border-radius:6px; font-size:16px; font-weight:bold; cursor:pointer;">+</button>
+          </div>
+       </div>
+
+       <!-- DUAL ACTION BUTTONS (ADD TO CART & BUY NOW) - PLACED DIRECTLY BELOW QUANTITY SELECTOR -->
+       <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:20px; padding:4px 0; z-index:90;">
+          <button class="secondaryButton" onclick="addCurrentToCart()" style="padding:13px; font-size:13px; font-weight:800; border-radius:14px; background:#f0fdf4; color:#0b6e38; border:1.5px solid #0b6e38; cursor:pointer; box-shadow:0 2px 8px rgba(11,110,56,0.08);">
+             Add to Cart 🛒
+          </button>
+          <button class="primaryButton" onclick="buyCurrentNow()" style="padding:13px; font-size:13px; font-weight:800; border-radius:14px; background:#0b6e38; color:white; border:none; cursor:pointer; box-shadow:0 4px 12px rgba(11,110,56,0.25);">
+             Buy Now ⚡
+          </button>
+       </div>
+
+       <!-- DESCRIPTION & HIGHLIGHTS TAB -->
+       <div style="margin-bottom:20px;">
+          <h3 style="font-size:13px; font-weight:800; color:#0f172a; margin:0 0 6px 0;">Product Overview & Ingredients</h3>
+          <p id="detailDesc" style="font-size:12px; color:#475569; line-height:1.6; margin:0 0 12px 0;">Product description will go here...</p>
+
+          <!-- QUALITY FEATURES & CLEAN FOOD VISION PILLS GRID -->
+          <div style="margin-top:10px;">
+             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <span style="font-size:11px; font-weight:800; color:#0b6e38; text-transform:uppercase; letter-spacing:0.5px; display:flex; align-items:center; gap:4px;">
+                   🌿 Clean Food Promises
+                </span>
+                <span style="font-size:10px; color:#15803d; font-weight:700;">Tap pill to read our vision 📖</span>
+             </div>
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                
+                <!-- Pill 1: Zero Preservatives -->
+                <div onclick="window.openVisionBlogModal('zero-preservatives')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">🌿</span> Zero Preservatives
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+                <!-- Pill 2: Zero Palm Oil -->
+                <div onclick="window.openVisionBlogModal('zero-palm-oil')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">🌴</span> Zero Palm Oil
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+                <!-- Pill 3: Pure Kachi Ghani Mustard Oil -->
+                <div onclick="window.openVisionBlogModal('pure-mustard-oil')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">🫒</span> Pure Mustard Oil
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+                <!-- Pill 4: Sun-Cured Solar Fermentation -->
+                <div onclick="window.openVisionBlogModal('sun-cured')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">☀️</span> Sun-Cured 21 Days
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+                <!-- Pill 5: Glass Jar Packaging -->
+                <div onclick="window.openVisionBlogModal('glass-jar')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">🏺</span> Glass Jar Only
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+                <!-- Pill 6: Hand-Pounded Spices -->
+                <div onclick="window.openVisionBlogModal('pure-spices')" style="background:#f0fdf4; border:1px solid #bbf7d0; padding:10px 12px; border-radius:12px; font-size:11px; font-weight:800; color:#166534; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s;" onmouseover="this.style.background='#dcfce7'" onmouseout="this.style.background='#f0fdf4'">
+                   <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:14px;">🌶️</span> Stone Ground Spices
+                   </div>
+                   <span style="font-size:10px; opacity:0.6;">➔</span>
+                </div>
+
+             </div>
+
+             <!-- SPECIAL CRAFT PILL: MADE WITH LOVE BY VILLAGE ARTISANS -->
+             <div onclick="window.openArtisanHeritageModal()" style="margin-top:10px; background:linear-gradient(135deg, #fff1f2 0%, #ffe4e6 100%); border:1px solid #fecdd3; padding:12px 14px; border-radius:14px; color:#be123c; display:flex; align-items:center; justify-content:space-between; cursor:pointer; transition:all 0.2s; box-shadow:0 3px 10px rgba(225,29,72,0.08);" onmouseover="this.style.transform='translateY(-1px)'" onmouseout="this.style.transform='none'">
+                <div style="display:flex; align-items:center; gap:10px;">
+                   <span style="font-size:20px;">❤️</span>
+                   <div>
+                      <div style="font-size:12px; font-weight:900; color:#9f1239;">Handcrafted with Love by Village Artisans</div>
+                      <div style="font-size:10px; color:#be123c; font-weight:700;">Meet the rural mothers behind our recipes 👵✨</div>
+                   </div>
+                </div>
+                <span style="font-size:11px; font-weight:900; background:white; color:#be123c; padding:4px 10px; border-radius:8px; box-shadow:0 1px 4px rgba(0,0,0,0.1);">Meet Artisans ➔</span>
+             </div>
+          </div>
+       </div>
+
+       <!-- PINCODE DELIVERY ESTIMATOR -->
+       <div style="margin-bottom:20px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+             <span style="font-size:12px; font-weight:800; color:#334155; display:flex; align-items:center; gap:4px;">
+                📍 Delivery Estimator & Pincode Check
+             </span>
+             <span style="font-size:10px; color:#15803d; font-weight:800;">Nationwide Shipping</span>
+          </div>
+          <div style="display:flex; gap:8px;">
+             <input type="text" id="productPincodeInput" placeholder="Enter 6-digit Pincode (e.g. 500001)" maxlength="6" 
+                    style="flex:1; padding:8px 12px; border:1px solid #cbd5e1; border-radius:10px; font-size:12px; font-weight:700;">
+             <button onclick="checkPincodeDelivery()" style="background:#0b6e38; color:white; border:none; padding:8px 14px; border-radius:10px; font-size:12px; font-weight:800; cursor:pointer;">
+                Check
+             </button>
+          </div>
+          <div id="pincodeResultBox" style="margin-top:8px; font-size:11px; display:none; background:#f0fdf4; border:1px solid #bbf7d0; padding:8px; border-radius:8px;"></div>
+       </div>
+
+       <!-- CUSTOMER REVIEWS & RATINGS SECTION -->
+       <div id="productReviewsSection" style="margin-bottom:24px; background:#ffffff; border:1px solid #e2e8f0; border-radius:18px; padding:16px; box-shadow:0 4px 12px rgba(0,0,0,0.03);">
+          
+          <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #f1f5f9; padding-bottom:12px; margin-bottom:14px;">
+             <div>
+                <h3 style="margin:0; font-size:15px; font-weight:900; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                   <span>💬</span> Customer Reviews & Ratings
+                </h3>
+                <span style="font-size:11px; color:#64748b;">Verified buyers & authentic feedback</span>
+             </div>
+             <button onclick="toggleWriteReviewForm()" style="background:#eaf7ee; color:#0b6e38; border:1px solid #bbf7d0; padding:6px 12px; border-radius:10px; font-size:11px; font-weight:800; cursor:pointer;">
+                ✍️ Write Review
+             </button>
+          </div>
+
+          <!-- RATING SUMMARY BOX -->
+          <div style="display:flex; align-items:center; gap:16px; background:#f8fafc; border:1px solid #f1f5f9; border-radius:14px; padding:12px 16px; margin-bottom:14px;">
+             <div style="text-align:center; padding-right:16px; border-right:1px solid #e2e8f0;">
+                <div id="reviewBoxScore" style="font-size:28px; font-weight:900; color:#0f172a; line-height:1;">4.9</div>
+                <div style="font-size:12px; color:#f59e0b; margin:2px 0;">⭐⭐⭐⭐⭐</div>
+                <div id="reviewBoxCount" style="font-size:10px; color:#64748b; font-weight:700;">Based on 12 reviews</div>
+             </div>
+             <div style="flex:1; font-size:11px; color:#475569;">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                   <span style="width:28px;">5 ★</span>
+                   <div style="flex:1; background:#e2e8f0; height:6px; border-radius:3px; overflow:hidden;"><div style="width:88%; background:#f59e0b; height:100%;"></div></div>
+                   <span style="width:25px; text-align:right; font-weight:700;">88%</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:2px;">
+                   <span style="width:28px;">4 ★</span>
+                   <div style="flex:1; background:#e2e8f0; height:6px; border-radius:3px; overflow:hidden;"><div style="width:12%; background:#f59e0b; height:100%;"></div></div>
+                   <span style="width:25px; text-align:right; font-weight:700;">12%</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:6px;">
+                   <span style="width:28px;">3 ★</span>
+                   <div style="flex:1; background:#e2e8f0; height:6px; border-radius:3px; overflow:hidden;"><div style="width:0%; background:#f59e0b; height:100%;"></div></div>
+                   <span style="width:25px; text-align:right; font-weight:700;">0%</span>
+                </div>
+             </div>
+          </div>
+
+          <!-- WRITE REVIEW FORM (COLLAPSIBLE) -->
+          <div id="writeReviewFormBox" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:14px; margin-bottom:16px;">
+             <h4 style="margin:0 0 10px 0; font-size:13px; font-weight:800; color:#166534;">Share Your Pickle Experience</h4>
+             
+             <!-- STAR SELECTOR -->
+             <div style="margin-bottom:10px;">
+                <label style="font-size:11px; font-weight:800; color:#334155; display:block; margin-bottom:4px;">Your Rating Star:</label>
+                <div id="starPickerRow" style="display:flex; gap:8px; font-size:22px; cursor:pointer;">
+                   <span onclick="setRatingStar(1)" class="star-pick" data-star="1">⭐</span>
+                   <span onclick="setRatingStar(2)" class="star-pick" data-star="2">⭐</span>
+                   <span onclick="setRatingStar(3)" class="star-pick" data-star="3">⭐</span>
+                   <span onclick="setRatingStar(4)" class="star-pick" data-star="4">⭐</span>
+                   <span onclick="setRatingStar(5)" class="star-pick" data-star="5">⭐</span>
+                </div>
+             </div>
+
+             <div style="margin-bottom:10px;">
+                <input type="text" id="reviewAuthorName" placeholder="Your Name / City (e.g. Ramesh - Jaipur)" style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; font-weight:700;">
+             </div>
+
+             <div style="margin-bottom:10px;">
+                <textarea id="reviewCommentText" rows="3" placeholder="Write your comments on taste, mustard oil aroma, spiciness or packaging..." style="width:100%; padding:8px 12px; border:1px solid #cbd5e1; border-radius:8px; font-size:12px; font-weight:500; font-family:inherit;"></textarea>
+             </div>
+
+             <div style="display:flex; justify-content:flex-end; gap:8px;">
+                <button onclick="toggleWriteReviewForm()" style="background:#f1f5f9; color:#475569; border:none; padding:6px 12px; border-radius:8px; font-size:11px; font-weight:700; cursor:pointer;">Cancel</button>
+                <button onclick="submitProductReview()" style="background:#0b6e38; color:white; border:none; padding:6px 16px; border-radius:8px; font-size:11px; font-weight:800; cursor:pointer;">Post Review</button>
+             </div>
+          </div>
+
+          <!-- REVIEWS LIST CONTAINER -->
+          <div id="productReviewsListContainer" style="display:flex; flex-direction:column; gap:10px;">
+             <p style="text-align:center; color:#94a3b8; font-size:12px; padding:15px;">Loading customer reviews...</p>
+          </div>
+
+       </div>
+
+       <!-- RECOMMENDATIONS STRIP ("YOU MAY ALSO LIKE") -->
+       <div style="margin-bottom:24px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:18px; padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+             <div>
+                <h3 style="margin:0; font-size:14px; font-weight:900; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                   <span>🏺</span> You May Also Like
+                </h3>
+                <span style="font-size:10px; color:#64748b;">More traditional homemade sun-cured pickles</span>
+             </div>
+             <button onclick="showScreen('homeScreen'); scrollToProducts();" style="background:none; border:none; color:#0b6e38; font-size:11px; font-weight:800; cursor:pointer;">
+                View All →
+             </button>
+          </div>
+
+          <!-- HORIZONTAL SCROLL CAROUSEL STRIP -->
+          <div id="recommendationsStripContainer" style="display:flex; gap:12px; overflow-x:auto; padding-bottom:8px; scroll-snap-type:x mandatory;">
+             <p style="color:#94a3b8; font-size:11px; padding:10px;">Loading recommended jars...</p>
+          </div>
+       </div>
+
+       <!-- DUAL ACTION BUTTONS (ADD TO CART & BUY NOW) -->
+
+
+    </div>
+  </div>
+</div>
+

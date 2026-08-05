@@ -1,0 +1,279 @@
+<div id="profileScreen" class="screen">
+  <header class="topBar">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button onclick="showScreen('homeScreen'); loadHome();" class="icon-btn" style="color:white; font-size:18px;">←</button>
+      <div>
+        <div class="brand-name" style="color: white; font-size:16px;">My Account Hub</div>
+        <div style="font-size:10px; color:rgba(255,255,255,0.85);">Orders, Pre-Bookings, Quotes & Profile</div>
+      </div>
+    </div>
+    <span style="font-size:11px; font-weight:800; background:rgba(255,255,255,0.2); padding:4px 10px; border-radius:12px; color:white;">AaharShree</span>
+  </header>
+
+  <div style="padding:15px; padding-bottom:110px; max-width:600px; margin:0 auto;">
+    
+    <!-- CUSTOMER PROFILE CARD HEADER -->
+    <div style="background:white; border-radius:20px; padding:18px; box-shadow:var(--shadow); text-align:center; margin-bottom:14px; border:1px solid #f0f0f0; position:relative;">
+       <div style="width:64px; height:64px; background:linear-gradient(135deg, #0b6e38 0%, #15803d 100%); color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:28px; margin:0 auto 8px; box-shadow:0 4px 12px rgba(11,110,56,0.2); border:3px solid #bbf7d0;">
+         👤
+       </div>
+       <h2 id="profHeaderName" style="font-size:17px; font-weight:900; color:#111827; margin:0;">Customer Account</h2>
+       <p id="profHeaderMobile" style="font-size:12px; color:#6b7280; margin:2px 0 6px 0;">Mobile: Loading...</p>
+
+       <div id="profRoleBadge" style="margin-bottom:10px;"></div>
+
+       <!-- QUICK STATS SUMMARY PILLS -->
+       <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:12px; border-top:1px solid #f1f5f9; padding-top:10px;">
+         <div onclick="switchCustProfileTab('orders')" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 4px; cursor:pointer;">
+           <div style="font-size:16px; font-weight:900; color:#0b6e38;" id="cntCustPickleOrders">0</div>
+           <div style="font-size:10px; font-weight:800; color:#475569;">Pickle Orders</div>
+         </div>
+         <div onclick="switchCustProfileTab('preorders')" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 4px; cursor:pointer;">
+           <div style="font-size:16px; font-weight:900; color:#0284c7;" id="cntCustPreOrders">0</div>
+           <div style="font-size:10px; font-weight:800; color:#475569;">Pre-Orders</div>
+         </div>
+         <div onclick="switchCustProfileTab('bulk')" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:8px 4px; cursor:pointer;">
+           <div style="font-size:16px; font-weight:900; color:#d97706;" id="cntCustBulkQuotes">0</div>
+           <div style="font-size:10px; font-weight:800; color:#475569;">Bulk Quotes</div>
+         </div>
+       </div>
+    </div>
+
+    <!-- INLINE ALERT BOX -->
+    <div id="profileAlertBox" style="display:none; padding:10px 14px; border-radius:12px; font-size:12px; font-weight:700; margin-bottom:14px; text-align:center;"></div>
+
+    <!-- CLEAN NAVIGATION SEGMENT TABS -->
+    <div style="display:flex; gap:4px; background:#f1f5f9; padding:4px; border-radius:14px; margin-bottom:14px; overflow-x:auto;">
+      <button id="custTabBtnOrders" onclick="switchCustProfileTab('orders')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:var(--primary); color:white; white-space:nowrap;">
+        📦 Pickle Orders
+      </button>
+      <button id="custTabBtnPreOrders" onclick="switchCustProfileTab('preorders')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:transparent; color:#475569; white-space:nowrap;">
+        ⏳ Pre-Orders
+      </button>
+      <button id="custTabBtnBulk" onclick="switchCustProfileTab('bulk')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:transparent; color:#475569; white-space:nowrap;">
+        🏺 Bulk Quotes
+      </button>
+      <button id="custTabBtnAddress" onclick="switchCustProfileTab('address')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:transparent; color:#475569; white-space:nowrap;">
+        📍 Address & Details
+      </button>
+      <button id="custTabBtnRewards" onclick="switchCustProfileTab('rewards')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:transparent; color:#475569; white-space:nowrap;">
+        🪙 Rewards & Points
+      </button>
+      <button id="custTabBtnSettings" onclick="switchCustProfileTab('settings')" style="flex:1; padding:9px 8px; border:none; border-radius:10px; font-weight:800; font-size:11px; cursor:pointer; background:transparent; color:#475569; white-space:nowrap;">
+        ⚙️ Settings
+      </button>
+    </div>
+
+    <!-- TAB 1: PICKLE ORDERS -->
+    <div id="custTabSecOrders" style="display:block;">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="font-size:14px; font-weight:800; color:#111827; margin:0;">📦 My Pickle Orders</h3>
+          <button onclick="loadCustomerAccountData()" style="background:none; border:none; color:var(--primary); font-size:12px; font-weight:800; cursor:pointer;">🔄 Refresh</button>
+       </div>
+       <div id="myCustOrdersList" style="display:flex; flex-direction:column; gap:12px;">
+          <p style="text-align:center; padding:30px; color:#94a3b8; font-size:12px;">Fetching your orders...</p>
+       </div>
+    </div>
+
+    <!-- TAB 2: PRE-ORDER BOOKINGS -->
+    <div id="custTabSecPreOrders" style="display:none;">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="font-size:14px; font-weight:800; color:#111827; margin:0;">⏳ My Sun-Aged Pre-Orders</h3>
+          <button onclick="loadCustomerAccountData()" style="background:none; border:none; color:var(--primary); font-size:12px; font-weight:800; cursor:pointer;">🔄 Refresh</button>
+       </div>
+       <div id="myCustPreOrdersList" style="display:flex; flex-direction:column; gap:12px;">
+          <p style="text-align:center; padding:30px; color:#94a3b8; font-size:12px;">Fetching pre-order bookings...</p>
+       </div>
+    </div>
+
+    <!-- TAB 3: BULK & WHOLESALE QUOTES -->
+    <div id="custTabSecBulk" style="display:none;">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+          <h3 style="font-size:14px; font-weight:800; color:#111827; margin:0;">🏺 My Bulk & Wholesale Inquiries</h3>
+          <button onclick="loadCustomerAccountData()" style="background:none; border:none; color:var(--primary); font-size:12px; font-weight:800; cursor:pointer;">🔄 Refresh</button>
+       </div>
+       <div id="myCustBulkQuotesList" style="display:flex; flex-direction:column; gap:12px;">
+          <p style="text-align:center; padding:30px; color:#94a3b8; font-size:12px;">Fetching bulk quote inquiries...</p>
+       </div>
+    </div>
+
+    <!-- TAB 4: EDITABLE CUSTOMER DETAILS & ADDRESS -->
+    <div id="custTabSecAddress" style="display:none;">
+       <div style="background:white; border-radius:20px; padding:18px; box-shadow:var(--shadow); border:1px solid #f0f0f0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+            <h3 style="color:#111827; font-size:14px; font-weight:800; display:flex; align-items:center; gap:6px; margin:0;">
+              <span>📍</span> Saved Personal & Delivery Details
+            </h3>
+            <span style="font-size:10px; font-weight:800; background:#e0f2fe; color:#0369a1; padding:2px 8px; border-radius:6px;">Editable</span>
+          </div>
+
+          <form id="profileDetailsForm" onsubmit="event.preventDefault(); saveFullProfileInfo();">
+             
+             <!-- NAME -->
+             <div style="margin-bottom:10px;">
+                <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Full Name <span style="color:#dc2626; font-weight:900;">*</span></label>
+                <input type="text" id="profInputName" required placeholder="e.g. Keshav Handa" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+             </div>
+
+             <!-- MOBILE & AGE ROW -->
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Mobile Number <span style="color:#dc2626; font-weight:900;">*</span></label>
+                   <input type="tel" id="profInputMobile" required pattern="[0-9]{10}" placeholder="10-digit mobile" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                </div>
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Age (Years)</label>
+                   <input type="number" id="profInputAge" min="10" max="100" placeholder="e.g. 28" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                </div>
+             </div>
+
+             <!-- GENDER & CITY ROW -->
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Gender</label>
+                   <select id="profSelectGender" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none; background:white;">
+                      <option value="">Select Gender</option>
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                   </select>
+                </div>
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">City / Town <span style="color:#dc2626; font-weight:900;">*</span></label>
+                   <input type="text" id="profInputCity" required placeholder="e.g. Pune, Maharashtra" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                </div>
+             </div>
+
+             <div style="margin:14px 0 10px 0; border-top:1px dashed #e2e8f0; padding-top:10px;">
+                <h4 style="color:#111827; font-size:12px; font-weight:800; display:flex; align-items:center; gap:6px; margin:0;">
+                  <span>🏠</span> Street Address Details
+                </h4>
+             </div>
+
+             <!-- HOUSE / FLAT -->
+             <div style="margin-bottom:10px;">
+                <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">House / Flat No / Building <span style="color:#dc2626; font-weight:900;">*</span></label>
+                <input type="text" id="addrHouse" required placeholder="e.g. Flat 102, Shanti Heights" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+             </div>
+
+             <!-- STREET / ROAD -->
+             <div style="margin-bottom:10px;">
+                <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Street / Road Name <span style="color:#dc2626; font-weight:900;">*</span></label>
+                <input type="text" id="addrStreet" required placeholder="e.g. M.G. Road" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+             </div>
+
+             <!-- AREA & LANDMARK -->
+             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Area / Locality <span style="color:#dc2626; font-weight:900;">*</span></label>
+                   <input type="text" id="addrArea" required placeholder="e.g. Kothrud" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                </div>
+                <div>
+                   <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">Landmark (Optional)</label>
+                   <input type="text" id="addrLandmark" placeholder="e.g. Near HDFC Bank" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+                </div>
+             </div>
+
+             <!-- PIN CODE -->
+             <div style="margin-bottom:14px;">
+                <label style="font-size:11px; font-weight:700; color:#475569; display:block; margin-bottom:4px;">6-Digit PIN Code <span style="color:#dc2626; font-weight:900;">*</span></label>
+                <input type="text" id="addrPin" required pattern="[0-9]{6}" maxlength="6" placeholder="e.g. 411038" style="width:100%; padding:10px; border-radius:10px; border:1px solid #cbd5e1; font-size:13px; outline:none;">
+             </div>
+
+             <button type="submit" class="primaryButton" style="padding:12px; font-size:14px; border-radius:12px; box-shadow:0 4px 12px rgba(11,110,56,0.25);">
+               💾 Save Address & Details
+             </button>
+          </form>
+       </div>
+    </div>
+
+    <!-- TAB 5: REWARDS & LOYALTY -->
+    <div id="custTabSecRewards" style="display:none;">
+       <div style="background:linear-gradient(135deg, #fffbeb, #fef3c7); border:1px solid #fde68a; border-radius:18px; padding:16px; margin-bottom:14px; box-shadow:0 2px 8px rgba(245,158,11,0.15);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+             <div>
+                <span style="font-size:11px; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.04em;">Available Rewards Balance</span>
+                <div style="font-size:24px; font-weight:900; color:#7c2d12; margin-top:2px;" id="profilePointsBalanceDisplay">0 Points</div>
+             </div>
+             <div style="background:#f59e0b; color:white; font-size:18px; font-weight:900; width:46px; height:46px; border-radius:50%; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px rgba(245,158,11,0.3);">
+                🪙
+             </div>
+          </div>
+          <div style="font-size:12px; color:#92400e; margin-top:8px; font-weight:600;" id="profilePointsValueDisplay">
+             Equivalent Rupee Value: <strong>₹0.00</strong> (1 Point = ₹1 Rupee value)
+          </div>
+       </div>
+
+       <!-- 5-ORDER MILESTONE PROGRESS TRACKER -->
+       <div style="background:white; border-radius:18px; padding:16px; border:1px solid #e2e8f0; margin-bottom:14px; box-shadow:var(--shadow);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+             <h4 style="margin:0; font-size:13px; font-weight:800; color:#0f172a;">🏆 5-Order Loyalty Milestone Progress</h4>
+             <span id="milestoneOrdersBadge" style="font-size:11px; font-weight:800; color:#0b6e38; background:#dcfce7; padding:2px 8px; border-radius:999px;">0 / 5 Orders</span>
+          </div>
+          <p style="font-size:11px; color:#64748b; margin:0 0 10px 0;" id="milestoneSubtitleText">
+             Place 5 completed orders to automatically unlock an Admin-approved Loyalty Reward Coupon!
+          </p>
+          <div style="width:100%; height:8px; background:#f1f5f9; border-radius:999px; overflow:hidden; margin-bottom:8px;">
+             <div id="milestoneProgressBar" style="width:0%; height:100%; background:linear-gradient(90deg, #10b981, #059669); border-radius:999px; transition:width 0.5s ease;"></div>
+          </div>
+          <div style="font-size:11px; font-weight:700; color:#334155;" id="milestoneNextRewardMsg">
+             Completing orders to unlock milestone rewards.
+          </div>
+       </div>
+
+       <!-- MY CLAIMED / APPROVED LOYALTY COUPONS -->
+       <div style="background:white; border-radius:18px; padding:16px; border:1px solid #e2e8f0; box-shadow:var(--shadow);">
+          <h4 style="margin:0 0 10px 0; font-size:13px; font-weight:800; color:#0f172a;">🎁 My Unlocked Loyalty Reward Coupons</h4>
+          <div id="myLoyaltyCouponsList" style="display:flex; flex-direction:column; gap:10px;">
+             <p style="text-align:center; padding:15px; color:#94a3b8; font-size:12px;">Loading your milestone coupons...</p>
+          </div>
+       </div>
+    </div>
+
+    <!-- TAB 6: APP PREFERENCES & THEME -->
+    <div id="custTabSecSettings" style="display:none;">
+       <div style="background:white; border-radius:20px; padding:18px; box-shadow:var(--shadow); margin-bottom:14px; border:1px solid #f0f0f0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+             <div style="display:flex; align-items:center; gap:10px;">
+                <span style="font-size:22px;" id="themeIconDisplay">🌙</span>
+                <div>
+                   <div style="font-size:13px; font-weight:800; color:#111827;">App Visual Theme</div>
+                   <div style="font-size:11px; color:#6b7280;" id="themeTextDisplay">Light Mode Active</div>
+                </div>
+             </div>
+             <div style="display:flex; background:#f1f5f9; padding:3px; border-radius:18px; border:1px solid #e2e8f0; gap:2px;">
+                <button id="themeLightBtn" onclick="setAppTheme('light')" style="border:none; padding:5px 12px; border-radius:14px; font-size:11px; font-weight:800; cursor:pointer;">☀️ Light</button>
+                <button id="themeDarkBtn" onclick="setAppTheme('dark')" style="border:none; padding:5px 12px; border-radius:14px; font-size:11px; font-weight:800; cursor:pointer;">🌙 Dark</button>
+             </div>
+          </div>
+       </div>
+
+       <div style="background:white; border-radius:20px; padding:8px; box-shadow:var(--shadow); border:1px solid #f0f0f0;">
+          <button onclick="showCart()" 
+                  style="width:100%; padding:12px; background:none; border:none; text-align:left; font-weight:800; font-size:13px; color:#1e293b; border-bottom:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+             <div style="display:flex; align-items:center; gap:10px;">
+               <span style="font-size:18px;">🛒</span>
+               <span>My Shopping Cart</span>
+             </div>
+             <span style="color:#94a3b8; font-weight:bold;">→</span>
+          </button>
+
+          <button id="profAuthActionBtn" onclick="handleProfileAuthToggle()" 
+                  style="width:100%; padding:12px; background:none; border:none; text-align:left; font-weight:800; font-size:13px; color:#dc2626; display:flex; justify-content:space-between; align-items:center; cursor:pointer;">
+             <div style="display:flex; align-items:center; gap:10px;">
+               <span id="profAuthActionIcon" style="font-size:18px;">🚪</span>
+               <span id="profAuthActionText">Sign Out / Logout</span>
+             </div>
+             <span style="font-weight:bold;">→</span>
+          </button>
+       </div>
+    </div>
+
+  </div>
+
+  <nav class="bottom-nav">
+    <button class="nav-item" onclick="showScreen('homeScreen'); loadHome();"><span>🏠</span>Home</button>
+    <button class="nav-item" onclick="showCart()"><span>🛒</span>Cart</button>
+    <button class="nav-item active" onclick="openProfile()"><span>👤</span>Profile</button>
+  </nav>
+</div>
