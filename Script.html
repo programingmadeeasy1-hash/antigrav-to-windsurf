@@ -719,7 +719,7 @@ window.generateBatchOrderInvoicePDF = function(ordersArray, isParcelMode = true)
         return;
     }
 
-    if (typeof showLoading === 'function') showLoading(`Consolidating ${ordersArray.length} Parcel Shipping Bills...`);
+    if (typeof showLoading === 'function') showLoading("Consolidating " + ordersArray.length + " Parcel Shipping Bills...");
 
     server("getAllSettings").then(s => {
         if (typeof hideLoading === 'function') hideLoading();
