@@ -1,16 +1,28 @@
 <script>
 // Global Client-Side Error Catchers for Diagnostic Feedback
+function showDiagnosticBanner(message) {
+    const banner = document.getElementById('diagnosticBanner');
+    if (!banner) return;
+
+    banner.textContent = message;
+    banner.style.display = 'block';
+    clearTimeout(showDiagnosticBanner.hideTimer);
+    showDiagnosticBanner.hideTimer = setTimeout(() => {
+        banner.style.display = 'none';
+    }, 4000);
+}
+
 window.onerror = function(message, source, lineno, colno, error) {
     const errorMsg = `🚨 Unhandled JS Error:\n${message}\nSource: ${source ? source.substring(source.lastIndexOf('/') + 1) : 'unknown'}\nLine: ${lineno}:${colno}`;
     console.error(errorMsg, error);
-    alert(errorMsg);
+    showDiagnosticBanner(errorMsg);
     return false;
 };
 
 window.onunhandledrejection = function(event) {
     const errorMsg = `🚨 Unhandled Promise Rejection:\n${event.reason}`;
     console.error(errorMsg);
-    alert(errorMsg);
+    showDiagnosticBanner(errorMsg);
 };
 
 // ======================================================
@@ -66,60 +78,76 @@ function server(functionName, ...args) {
  * Universal Data Initializer Per Screen
  */
 function triggerScreenInitializer(screenId) {
+    const safeRun = (initializerName, initializer) => {
+        try {
+            if (typeof initializer === 'function') {
+                initializer();
+                console.log(`[startup] initializer done: ${initializerName} for ${screenId}`);
+            }
+        } catch (e) {
+            console.error(`[startup] initializer failed: ${initializerName} for ${screenId}`, e);
+            showDiagnosticBanner(`[startup] initializer failed: ${initializerName} for ${screenId}`);
+        }
+    };
+
     try {
         switch (screenId) {
             case 'homeScreen':
-                if (typeof loadHome === 'function') loadHome();
+                safeRun('loadHome', loadHome);
                 break;
             case 'cartScreen':
-                if (typeof loadCart === 'function') loadCart();
-                else if (typeof showCart === 'function') showCart();
+                if (typeof loadCart === 'function') {
+                    safeRun('loadCart', loadCart);
+                } else if (typeof showCart === 'function') {
+                    safeRun('showCart', showCart);
+                }
                 break;
             case 'myOrdersScreen':
-                if (typeof loadMyOrders === 'function') loadMyOrders();
+                safeRun('loadMyOrders', loadMyOrders);
                 break;
             case 'profileScreen':
-                if (typeof loadProfile === 'function') loadProfile();
+                safeRun('loadProfile', loadProfile);
                 break;
             case 'dashboardScreen':
-                if (typeof loadDashboard === 'function') loadDashboard();
+                safeRun('loadDashboard', loadDashboard);
                 break;
             case 'ordersScreen':
-                if (typeof loadAdminOrders === 'function') loadAdminOrders();
+                safeRun('loadAdminOrders', loadAdminOrders);
                 break;
             case 'productsAdminScreen':
-                if (typeof loadAdminProducts === 'function') loadAdminProducts();
+                safeRun('loadAdminProducts', loadAdminProducts);
                 break;
             case 'inventoryScreen':
-                if (typeof loadInventory === 'function') loadInventory();
+                safeRun('loadInventory', loadInventory);
                 break;
             case 'customersScreen':
-                if (typeof loadCustomers === 'function') loadCustomers();
+                safeRun('loadCustomers', loadCustomers);
                 break;
             case 'settingsScreen':
-                if (typeof loadSettings === 'function') loadSettings();
+                safeRun('loadSettings', loadSettings);
                 break;
             case 'couponsScreen':
-                if (typeof loadCouponsAdmin === 'function') loadCouponsAdmin();
+                safeRun('loadCouponsAdmin', loadCouponsAdmin);
                 break;
             case 'slidersAdminScreen':
-                if (typeof loadAdminSliders === 'function') loadAdminSliders();
+                safeRun('loadAdminSliders', loadAdminSliders);
                 break;
             case 'specialOrdersAdminScreen':
-                if (typeof loadSpecialAdminData === 'function') loadSpecialAdminData();
+                safeRun('loadSpecialAdminData', loadSpecialAdminData);
                 break;
             case 'categoriesScreen':
-                if (typeof loadAdminCategories === 'function') loadAdminCategories();
+                safeRun('loadAdminCategories', loadAdminCategories);
                 break;
             case 'analyticsScreen':
-                if (typeof loadAnalytics === 'function') loadAnalytics();
+                safeRun('loadAnalytics', loadAnalytics);
                 break;
             case 'adminProfileScreen':
-                if (typeof loadAdminStaffDirectory === 'function') loadAdminStaffDirectory();
+                safeRun('loadAdminStaffDirectory', loadAdminStaffDirectory);
                 break;
         }
-    } catch(e) {
+    } catch (e) {
         console.warn("Screen trigger error for " + screenId + ":", e);
+        showDiagnosticBanner("Screen trigger error for " + screenId);
     }
 }
 
@@ -128,6 +156,8 @@ function triggerScreenInitializer(screenId) {
  */
 function showScreen(screenId, pushHistory = true) {
     if (!screenId) return;
+
+    console.log(`[startup] showScreen entered: ${screenId}`);
 
     const fallbackOrder = [screenId, 'loginScreen', 'homeScreen', 'splashScreen'];
     let target = null;
@@ -170,6 +200,7 @@ function showScreen(screenId, pushHistory = true) {
         target.style.display = (resolvedScreenId === 'splashScreen') ? 'flex' : 'block';
     } catch (e) {}
 
+    console.log(`[startup] target resolved: ${resolvedScreenId} for ${screenId}`);
     window.scrollTo(0, 0);
 
     // Save to localStorage so screen remains active on page refresh
@@ -190,8 +221,14 @@ function showScreen(screenId, pushHistory = true) {
     // Synchronize bottom nav active state across screens
     updateBottomNavUI(resolvedScreenId);
 
-    // Automatically trigger data refresh / initializer for opened screen
-    triggerScreenInitializer(screenId);
+    // Automatically trigger data refresh / initializer for opened screen after the active class commits
+    setTimeout(() => {
+        try {
+            triggerScreenInitializer(screenId);
+        } catch (e) {
+            console.error(`[startup] screen initializer dispatch failed for ${screenId}`, e);
+        }
+    }, 0);
 }
 
 // Helper for Bottom Nav
@@ -271,6 +308,7 @@ function logout() {
 
 // Check saved user session & sync maintenance mode on app start
 document.addEventListener("DOMContentLoaded", () => {
+    console.log("[startup] DOMContentLoaded");
     App.user = null;
     try {
         localStorage.removeItem("aaharshree_user");
@@ -281,6 +319,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (typeof updateCartBadge === 'function') updateCartBadge();
 
     server("getMaintenanceStatus").then(res => {
+        console.log("[startup] maintenance-status done");
         if (res && (res.maintenance !== undefined || res.maintenanceMode !== undefined)) {
             const isMaint = !!(res.maintenance || res.maintenanceMode);
             localStorage.setItem("app_maintenance_mode", String(isMaint));
@@ -288,7 +327,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (typeof renderMasterShutdownCard === 'function') renderMasterShutdownCard();
             if (typeof renderSettingsMasterShutdown === 'function') renderSettingsMasterShutdown();
         }
-    }).catch(e => {});
+    }).catch(e => {
+        console.warn("[startup] maintenance-status failed", e);
+    });
 });
 
 /**

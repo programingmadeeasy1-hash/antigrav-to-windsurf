@@ -18,6 +18,8 @@
     if (isDestroyed) return;
     isDestroyed = true;
 
+    console.log("[startup] splash timer fired");
+
     var splash = document.getElementById("splashScreen");
     var targetScreen = "loginScreen";
 
@@ -31,22 +33,33 @@
           targetScreen = "homeScreen";
         }
       }
-    } catch(e) {}
-
-    // Animate opacity fade out
-    if (splash) {
-      splash.style.opacity = "0";
-      splash.style.pointerEvents = "none";
+      console.log(`[startup] splash target resolved: ${targetScreen}`);
+    } catch (e) {
+      console.warn("[startup] splash target resolution failed", e);
     }
 
-    // After 300ms transition, remove element from DOM permanently
-    setTimeout(function() {
+    try {
       if (splash && splash.parentNode) {
         splash.parentNode.removeChild(splash);
       }
+    } catch (e) {
+      console.warn("[startup] splash removal failed", e);
+    }
 
+    try {
       if (typeof window.showScreen === 'function') {
-        window.showScreen(targetScreen);
+        try {
+          window.showScreen(targetScreen);
+        } catch (e) {
+          console.error("[startup] showScreen failed during splash dismissal", e);
+          if (typeof window.showScreen === 'function') {
+            try {
+              window.showScreen('loginScreen');
+            } catch (fallbackError) {
+              console.error("[startup] fallback login rendering also failed", fallbackError);
+            }
+          }
+        }
       } else {
         var targetEl = document.getElementById(targetScreen) || document.getElementById('loginScreen');
         if (targetEl) {
@@ -54,7 +67,14 @@
           targetEl.style.display = 'block';
         }
       }
-    }, 300);
+    } catch (e) {
+      console.error("[startup] splash dismissal failed", e);
+      var fallbackEl = document.getElementById('loginScreen');
+      if (fallbackEl) {
+        fallbackEl.classList.add('active');
+        fallbackEl.style.display = 'block';
+      }
+    }
   }
 
   // Animate progress bar fill in 800ms
@@ -63,10 +83,10 @@
     if (fill) fill.style.width = "100%";
   }, 50);
 
-  // Trigger dismissal after 1.0 seconds
+  // Primary dismissal timer
   setTimeout(destroySplashAndEnter, 1000);
 
-  // Absolute safety backup at 2.0 seconds
+  // Hard-cap safety timer (delegates to same idempotent function)
   setTimeout(destroySplashAndEnter, 2000);
 })();
 </script>
